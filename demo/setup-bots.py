@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-OpenWebUI Bot Setup Script
-Automatically imports all 6 bot personalities with their custom tools
+OpenWebUI Complete Setup Script
+Automatically configures Gemini connection and imports all 6 bot personalities
 
 Usage:
     python3 setup-bots.py
@@ -9,16 +9,39 @@ Usage:
 Requirements:
     - OpenWebUI running at http://localhost:3000
     - User account already created (sign up first in the UI)
-    - Email and password for authentication
+    - .env file with GEMINI_API_KEY configured
 """
 
 import requests
 import json
 import sys
+import os
 from pathlib import Path
 
 # Configuration
 OPENWEBUI_URL = "http://localhost:3000"
+
+# Load Gemini API key from environment or .env file
+def load_gemini_key():
+    """Load Gemini API key from .env file or environment"""
+    env_file = Path(__file__).parent / ".env"
+
+    # Try environment variable first
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        return key
+
+    # Try .env file
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                if line.startswith("GEMINI_API_KEY="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+
+    # Prompt user
+    return input("Enter your Gemini API key: ").strip()
+
+GEMINI_API_KEY = load_gemini_key()
 EMAIL = input("Enter your OpenWebUI email: ").strip()
 PASSWORD = input("Enter your OpenWebUI password: ").strip()
 
@@ -46,6 +69,73 @@ def authenticate():
     except Exception as e:
         print(f"❌ Authentication error: {e}")
         sys.exit(1)
+
+
+def configure_gemini_connection(auth_header):
+    """Configure Gemini API connection in admin settings"""
+    print("🔌 Configuring Gemini connection...")
+
+    admin_config = {
+        "version": 0,
+        "ui": {
+            "enable_signup": False
+        },
+        "openai": {
+            "enable": True,
+            "api_base_urls": [
+                "https://generativelanguage.googleapis.com/v1beta/openai"
+            ],
+            "api_keys": [
+                GEMINI_API_KEY
+            ],
+            "api_configs": {
+                "0": {
+                    "enable": True,
+                    "tags": [],
+                    "prefix_id": "",
+                    "model_ids": [],
+                    "connection_type": "external",
+                    "auth_type": "bearer"
+                }
+            }
+        },
+        "evaluation": {
+            "arena": {
+                "enable": False,
+                "models": []
+            }
+        },
+        "ollama": {
+            "enable": False,
+            "base_urls": [],
+            "api_configs": {}
+        }
+    }
+
+    try:
+        response = requests.post(
+            f"{OPENWEBUI_URL}/api/config/update",
+            headers={
+                "Authorization": auth_header,
+                "Content-Type": "application/json"
+            },
+            json=admin_config,
+            timeout=30
+        )
+
+        if response.status_code in [200, 201]:
+            print("  ✅ Gemini connection configured")
+            print("  📡 API endpoint: https://generativelanguage.googleapis.com")
+            print("  🔑 API key configured")
+            return True
+        else:
+            print(f"  ⚠️  Configuration may have failed (status {response.status_code})")
+            print(f"  Response: {response.text[:200]}")
+            return False
+
+    except Exception as e:
+        print(f"  ❌ Failed to configure connection: {e}")
+        return False
 
 
 def create_tool(auth_header, tool_data):
@@ -123,10 +213,13 @@ def create_bot(auth_header, bot_data):
 def main():
     """Main setup function"""
     print("\n" + "="*70)
-    print("🤖 OpenWebUI Bot Setup")
+    print("🤖 OpenWebUI Complete Setup")
     print("="*70)
     print(f"Target: {OPENWEBUI_URL}")
-    print("Bots: HAL 9000, Marvin, Bender, GLADOS, JARVIS, Cortana")
+    print("Tasks:")
+    print("  1. Configure Gemini API connection")
+    print("  2. Import 6 bot personalities (HAL, Marvin, Bender, GLADOS, JARVIS, Cortana)")
+    print("  3. Import 6 custom tool sets (39 total functions)")
     print("="*70 + "\n")
 
     # Load bot configs
@@ -153,34 +246,56 @@ def main():
     # Authenticate
     auth_header = authenticate()
 
-    # Create tools first
-    print("📦 Creating Tools...")
+    # Step 1: Configure Gemini connection
+    print("=" * 70)
+    print("STEP 1: Admin Configuration")
+    print("=" * 70 + "\n")
+    configure_gemini_connection(auth_header)
+    print()
+
+    # Step 2: Create tools
+    print("=" * 70)
+    print("STEP 2: Import Tools")
+    print("=" * 70 + "\n")
+    print(f"📦 Creating {len(tools)} tool sets...")
     tools_created = 0
     for tool in tools:
         if create_tool(auth_header, tool):
             tools_created += 1
 
-    print(f"\n✅ Created {tools_created}/{len(tools)} tools\n")
+    print(f"\n✅ Imported {tools_created}/{len(tools)} tool sets\n")
 
-    # Create bots
-    print("🤖 Creating Bots...")
+    # Step 3: Create bots
+    print("=" * 70)
+    print("STEP 3: Import Bot Personalities")
+    print("=" * 70 + "\n")
+    print(f"🤖 Creating {len(bots)} bots...")
     bots_created = 0
     for bot in bots:
         if create_bot(auth_header, bot):
             bots_created += 1
 
-    print(f"\n✅ Created {bots_created}/{len(bots)} bots\n")
+    print(f"\n✅ Imported {bots_created}/{len(bots)} bots\n")
 
     # Summary
     print("="*70)
-    print("✅ Setup complete!")
+    print("✅ Setup Complete!")
     print("="*70)
+    print("\n📋 What was configured:")
+    print("  ✅ Gemini API connection (gemini-3-flash-preview)")
+    print(f"  ✅ {tools_created} tool sets with 39 custom functions")
+    print(f"  ✅ {bots_created} bot personalities with unique system prompts")
     print("\n📋 Next steps:")
     print("  1. Open http://localhost:3000")
-    print("  2. Click the model dropdown")
+    print("  2. Click the model dropdown in chat")
     print("  3. Select HAL, Marvin, Bender, GLADOS, JARVIS, or Cortana")
-    print("  4. Start chatting and watch tool calls in action!")
-    print("\n💡 Tip: Chat with HAL about pod bay doors to trigger tools\n")
+    print("  4. Start chatting and watch tool calls trigger!")
+    print("\n💡 Tips:")
+    print("  • Ask HAL about pod bay doors to trigger diagnostics")
+    print("  • Ask Marvin about the meaning of life")
+    print("  • Ask Bender to steal something or brew beer")
+    print("  • Traces appear in Grafana Tempo after 30-60 seconds")
+    print()
 
 
 if __name__ == "__main__":

@@ -65,20 +65,23 @@ Wait ~30 seconds for services to start, then open:
 - **OpenWebUI**: http://localhost:3000
 - **Sign up**: Create an account (first user becomes admin)
 
-### 4. Setup Bot Personalities
+### 4. Run Automated Setup
 
-**Run the automated bot setup script:**
+**Run the complete setup script:**
 
 ```bash
 python3 setup-bots.py
 ```
 
-This script will:
-- ✅ Create 6 bot personalities (HAL, Marvin, Bender, GLADOS, JARVIS, Cortana)
-- ✅ Import their custom tools (pod bay doors, diagnostics, insult generator, etc.)
-- ✅ Configure system prompts for each personality
+This script will automatically configure everything:
+- ✅ **Admin Settings**: Configure Gemini API connection with your API key from .env
+- ✅ **Bot Personalities**: Import 6 bots (HAL, Marvin, Bender, GLADOS, JARVIS, Cortana)
+- ✅ **Custom Tools**: Import 6 tool sets with 39 total functions
+- ✅ **System Prompts**: Configure unique personalities for each bot
 
-**Manual setup alternative:** If you prefer to manually create bots, see `bot-configs/` directory for JSON exports.
+**No manual configuration needed!** The script handles connections, models, tools, and bots in one command.
+
+**Manual setup alternative:** If you prefer manual configuration, see `bot-configs/` directory for JSON exports.
 
 ### 5. Test It Out
 

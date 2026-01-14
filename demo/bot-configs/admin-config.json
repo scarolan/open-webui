@@ -1,0 +1,36 @@
+{
+  "version": 0,
+  "ui": {
+    "enable_signup": false
+  },
+  "openai": {
+    "enable": true,
+    "api_base_urls": [
+      "https://generativelanguage.googleapis.com/v1beta/openai"
+    ],
+    "api_keys": [
+      "${GEMINI_API_KEY}"
+    ],
+    "api_configs": {
+      "0": {
+        "enable": true,
+        "tags": [],
+        "prefix_id": "",
+        "model_ids": [],
+        "connection_type": "external",
+        "auth_type": "bearer"
+      }
+    }
+  },
+  "evaluation": {
+    "arena": {
+      "enable": false,
+      "models": []
+    }
+  },
+  "ollama": {
+    "enable": false,
+    "base_urls": [],
+    "api_configs": {}
+  }
+}
