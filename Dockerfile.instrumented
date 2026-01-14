@@ -1,0 +1,8 @@
+# Use official pre-built OpenWebUI image (no frontend build needed!)
+FROM ghcr.io/open-webui/open-webui:main
+
+# Copy only our instrumented Python files
+COPY backend/open_webui/utils/telemetry/llm_instrumentation.py /app/backend/open_webui/utils/telemetry/
+COPY backend/open_webui/routers/openai.py /app/backend/open_webui/routers/
+
+# That's it! Full instrumentation in 30 seconds

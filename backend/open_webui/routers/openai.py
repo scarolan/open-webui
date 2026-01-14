@@ -48,6 +48,10 @@ from open_webui.utils.misc import (
     convert_logit_bias_input_to_json,
     stream_chunks_handler,
 )
+from open_webui.utils.telemetry.llm_instrumentation import (
+    LLMSpanManager,
+    detect_provider_from_url,
+)
 
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_access
@@ -814,6 +818,9 @@ async def generate_chat_completion(
     model_id = form_data.get("model")
     model_info = Models.get_model_by_id(model_id, db=db)
 
+    # Store original model ID (bot name) for telemetry before it gets replaced
+    original_model_id = model_id
+
     # Check model info and override the payload
     if model_info:
         if model_info.base_model_id:
@@ -927,62 +934,154 @@ async def generate_chat_completion(
     else:
         request_url = f"{url}/chat/completions"
 
-    payload = json.dumps(payload)
+    # Parse payload to extract messages for LLM span
+    payload_dict = json.loads(payload) if isinstance(payload, str) else payload
+    # Use original_model_id (bot name like "hal") for span, not the base model
+    model_name = original_model_id if original_model_id else payload_dict.get("model", "unknown")
+    base_model = payload_dict.get("model", None)  # Underlying LLM (e.g., gemini-3-flash-preview)
+    provider = detect_provider_from_url(request_url)
 
     r = None
     session = None
     streaming = False
     response = None
 
-    try:
-        session = aiohttp.ClientSession(
-            trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
-        )
+    # Create LLM span with OpenInference attributes
+    async with LLMSpanManager(model=model_name, provider=provider) as llm_span:
+        # Set base model if different from model name (for bots)
+        if base_model and base_model != model_name:
+            llm_span.span.set_attribute("llm.base_model", base_model)
+        # Set input messages
+        llm_span.set_input(payload_dict.get("messages", []))
 
-        r = await session.request(
-            method="POST",
-            url=request_url,
-            data=payload,
-            headers=headers,
-            cookies=cookies,
-            ssl=AIOHTTP_CLIENT_SESSION_SSL,
-        )
+        # Set invocation parameters (temperature, max_tokens, etc.)
+        llm_span.set_invocation_parameters(payload_dict)
 
-        # Check if response is SSE
-        if "text/event-stream" in r.headers.get("Content-Type", ""):
-            streaming = True
-            return StreamingResponse(
-                stream_chunks_handler(r.content),
-                status_code=r.status,
-                headers=dict(r.headers),
-                background=BackgroundTask(
-                    cleanup_response, response=r, session=session
-                ),
+        try:
+            session = aiohttp.ClientSession(
+                trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
             )
-        else:
-            try:
-                response = await r.json()
-            except Exception as e:
-                log.error(e)
-                response = await r.text()
 
-            if r.status >= 400:
-                if isinstance(response, (dict, list)):
-                    return JSONResponse(status_code=r.status, content=response)
-                else:
-                    return PlainTextResponse(status_code=r.status, content=response)
+            r = await session.request(
+                method="POST",
+                url=request_url,
+                data=payload if isinstance(payload, str) else json.dumps(payload),
+                headers=headers,
+                cookies=cookies,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            )
 
-            return response
-    except Exception as e:
-        log.exception(e)
+            # Check if response is SSE
+            if "text/event-stream" in r.headers.get("Content-Type", ""):
+                streaming = True
 
-        raise HTTPException(
-            status_code=r.status if r else 500,
-            detail="Open WebUI: Server Connection Error",
-        )
-    finally:
-        if not streaming:
-            await cleanup_response(r, session)
+                # For streaming, we need to wrap the stream handler to extract usage
+                async def llm_stream_handler():
+                    """Stream handler that captures token usage and tool calls from SSE events"""
+                    accumulated_content = ""
+                    accumulated_tool_calls = []
+                    try:
+                        async for chunk in stream_chunks_handler(r.content):
+                            # Try to parse SSE data to extract usage and content
+                            try:
+                                if chunk.startswith(b"data: "):
+                                    data_str = chunk[6:].decode("utf-8").strip()
+                                    if data_str and data_str != "[DONE]":
+                                        data = json.loads(data_str)
+
+                                        # Extract token usage (sent in final chunk)
+                                        if "usage" in data:
+                                            llm_span.set_usage(data["usage"])
+
+                                        # Accumulate response content and tool calls
+                                        if "choices" in data and data["choices"]:
+                                            delta = data["choices"][0].get("delta", {})
+
+                                            # Accumulate content
+                                            content_delta = delta.get("content", "")
+                                            if content_delta:
+                                                accumulated_content += content_delta
+
+                                            # Accumulate tool calls
+                                            if "tool_calls" in delta:
+                                                log.info(f"DEBUG STREAM: Found tool_calls in delta: {delta['tool_calls']}")
+                                                accumulated_tool_calls.extend(delta["tool_calls"])
+                            except:
+                                pass  # Don't break streaming if parsing fails
+
+                            yield chunk
+
+                        # Set accumulated output and tool calls at end of stream
+                        log.info(f"=== STREAM END ===")
+                        log.info(f"Accumulated tool_calls: {json.dumps(accumulated_tool_calls, indent=2)[:1000]}")
+                        log.info(f"Tool calls count: {len(accumulated_tool_calls)}")
+                        log.info(f"=== END STREAM ===")
+
+                        llm_span.set_output(
+                            accumulated_content if accumulated_content else None,
+                            tool_calls=accumulated_tool_calls if accumulated_tool_calls else None
+                        )
+                    except Exception as e:
+                        log.error(f"Error in LLM stream handler: {e}")
+                        raise
+
+                return StreamingResponse(
+                    llm_stream_handler(),
+                    status_code=r.status,
+                    headers=dict(r.headers),
+                    background=BackgroundTask(
+                        cleanup_response, response=r, session=session
+                    ),
+                )
+            else:
+                try:
+                    response = await r.json()
+                    # DEBUG: Log the ENTIRE response to see tool_calls structure
+                    log.info(f"=== FULL LLM RESPONSE ===")
+                    log.info(f"{json.dumps(response, indent=2)[:2000]}")
+                    log.info(f"=== END RESPONSE ===")
+                except Exception as e:
+                    log.error(e)
+                    response = await r.text()
+
+                # Extract usage and output for non-streaming responses
+                if isinstance(response, dict):
+                    # Extract token usage
+                    if "usage" in response:
+                        llm_span.set_usage(response["usage"])
+
+                    # Extract output message and tool calls
+                    if "choices" in response and response["choices"]:
+                        choice = response["choices"][0]
+                        if "message" in choice:
+                            message = choice["message"]
+                            content = message.get("content", "")
+                            tool_calls = message.get("tool_calls")
+
+                            # DEBUG: Log what we found in the response
+                            log.info(f"DEBUG: Response message keys: {list(message.keys())}")
+                            log.info(f"DEBUG: tool_calls value: {tool_calls}")
+                            log.info(f"DEBUG: Full message (truncated): {str(message)[:500]}")
+
+                            llm_span.set_output(content, tool_calls=tool_calls)
+
+                if r.status >= 400:
+                    if isinstance(response, (dict, list)):
+                        return JSONResponse(status_code=r.status, content=response)
+                    else:
+                        return PlainTextResponse(status_code=r.status, content=response)
+
+                return response
+        except Exception as e:
+            log.exception(e)
+
+            raise HTTPException(
+                status_code=r.status if r else 500,
+                detail="Open WebUI: Server Connection Error",
+            )
+        finally:
+            if not streaming:
+                await cleanup_response(r, session)
 
 
 async def embeddings(request: Request, form_data: dict, user):
