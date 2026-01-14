@@ -24,7 +24,7 @@ This demo showcases OpenInference-compliant LLM observability using OpenWebUI wi
 
 ---
 
-## 🚀 Quick Start (5 minutes)
+## 🚀 Quick Start (10 minutes)
 
 ### 1. Clone This Fork
 
@@ -65,7 +65,22 @@ Wait ~30 seconds for services to start, then open:
 - **OpenWebUI**: http://localhost:3000
 - **Sign up**: Create an account (first user becomes admin)
 
-### 4. Test It Out
+### 4. Setup Bot Personalities
+
+**Run the automated bot setup script:**
+
+```bash
+python3 setup-bots.py
+```
+
+This script will:
+- ✅ Create 6 bot personalities (HAL, Marvin, Bender, GLADOS, JARVIS, Cortana)
+- ✅ Import their custom tools (pod bay doors, diagnostics, insult generator, etc.)
+- ✅ Configure system prompts for each personality
+
+**Manual setup alternative:** If you prefer to manually create bots, see `bot-configs/` directory for JSON exports.
+
+### 5. Test It Out
 
 1. **Chat with bots**: Select HAL, Marvin, or Bender and send a message
 2. **Watch tools fire**: You'll see superscript indicators when bots use tools
