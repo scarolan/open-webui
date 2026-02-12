@@ -209,6 +209,28 @@ The demo includes 6 pre-configured bot personalities, each with custom tools:
 
 ## 🧪 Testing & Load Generation
 
+### **Comprehensive Test Suite** ⭐
+
+We have a full test suite with 55+ tests covering unit, integration, and query validation:
+
+```bash
+# Quick test run
+./run-tests.sh                # Unit tests (fast, no deps)
+./run-tests.sh --integration  # Integration tests (requires OpenWebUI)
+./run-tests.sh --tempo        # Dashboard query tests (requires Grafana Cloud)
+./run-tests.sh --all -v       # Everything with verbose output
+```
+
+**Test Coverage**:
+- ✅ 20+ unit tests for instrumentation code
+- ✅ 10+ integration tests for end-to-end flows
+- ✅ 25+ dashboard query validation tests
+- ✅ All critical paths covered
+
+See `tests/README.md` for detailed documentation.
+
+---
+
 ### Load Gen Scripts
 
 **Purpose**: Generate test traces for dashboard development

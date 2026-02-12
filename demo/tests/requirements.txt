@@ -1,0 +1,27 @@
+# Test Requirements for LLM Observability Demo
+
+# NOTE: You must first install the main project dependencies!
+# From the repo root, run:
+#   pip install -e .
+# OR install from the backend directory:
+#   cd ../../backend && pip install -e .
+
+# Core testing framework
+pytest>=8.3.2
+pytest-asyncio>=0.23.0
+
+# For mocking and testing
+pytest-mock>=3.14.0
+
+# OpenTelemetry testing (if not already installed)
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+
+# HTTP requests for integration tests
+requests>=2.31.0
+
+# The following are needed from main project:
+# - typer (for open_webui imports)
+# - fastapi
+# - aiohttp
+# - All dependencies in pyproject.toml
