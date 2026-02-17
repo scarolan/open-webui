@@ -1,205 +1,207 @@
 #!/bin/bash
-# OpenWebUI Demo - Complete Startup Script
+# OpenWebUI Demo - Complete Automated Startup
 # Works on macOS and Linux
+# Usage: ./start-demo.sh [--with-traffic]
 
-set -e  # Exit on error
+set -e
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-echo -e "${BLUE}🚀 OpenWebUI AI Observability Demo - Startup${NC}"
+DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$DEMO_DIR"
+
+# Default credentials (override with env vars)
+OPENWEBUI_EMAIL="${OPENWEBUI_EMAIL:-demo@example.com}"
+OPENWEBUI_PASSWORD="${OPENWEBUI_PASSWORD:-changeme}"
+OPENWEBUI_NAME="${OPENWEBUI_NAME:-Demo User}"
+
+echo -e "${BLUE}🚀 OpenWebUI AI Observability Demo${NC}"
 echo "================================================"
 echo ""
 
 # Detect OS
-OS="unknown"
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    OS="mac"
     echo "📱 Detected: macOS"
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    OS="linux"
     echo "🐧 Detected: Linux"
-else
-    echo -e "${YELLOW}⚠️  Unknown OS: $OSTYPE${NC}"
-    echo "   Continuing anyway..."
 fi
 echo ""
 
-# Check Docker is available
-echo -e "${BLUE}1️⃣ Checking Docker...${NC}"
+########################################
+# Step 1: Check prerequisites
+########################################
+echo -e "${BLUE}1️⃣  Checking prerequisites...${NC}"
+
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}❌ Docker not found${NC}"
-    if [[ "$OS" == "mac" ]]; then
-        echo "   👉 Install Docker Desktop: https://www.docker.com/products/docker-desktop"
-    else
-        echo "   👉 For WSL2: Start Docker Desktop on Windows"
-        echo "   👉 For Linux: Install Docker Engine"
-    fi
+    echo "   Install: https://www.docker.com/products/docker-desktop"
     exit 1
 fi
+echo -e "   ${GREEN}✅ Docker: $(docker --version | cut -d' ' -f3 | tr -d ',')${NC}"
 
-DOCKER_VERSION=$(docker --version)
-echo -e "${GREEN}✅ Docker found: $DOCKER_VERSION${NC}"
-
-# Check Docker is running
 if ! docker ps &> /dev/null; then
     echo -e "${RED}❌ Docker daemon not running${NC}"
-    if [[ "$OS" == "mac" ]]; then
-        echo "   👉 Start Docker Desktop application"
-    else
-        echo "   👉 Start Docker Desktop (Windows) or Docker daemon (Linux)"
-    fi
+    echo "   Start Docker Desktop and try again"
     exit 1
 fi
-echo -e "${GREEN}✅ Docker daemon is running${NC}"
-echo ""
+echo -e "   ${GREEN}✅ Docker daemon running${NC}"
 
-# Check .env exists
-echo -e "${BLUE}2️⃣ Checking configuration...${NC}"
 if [ ! -f .env ]; then
     echo -e "${RED}❌ .env file not found${NC}"
-    echo "   👉 Copy .env.example to .env:"
-    echo "      cp .env.example .env"
-    echo "      nano .env  # Edit with your credentials"
+    echo "   cp .env.example .env && nano .env"
     exit 1
 fi
 
-# Verify required environment variables
-required_vars=("GEMINI_API_KEY" "GRAFANA_OTLP_TOKEN" "OTEL_EXPORTER_OTLP_ENDPOINT")
-missing_vars=()
-for var in "${required_vars[@]}"; do
-    if ! grep -q "^${var}=" .env || grep -q "^${var}=$" .env; then
-        missing_vars+=("$var")
+for var in GEMINI_API_KEY GRAFANA_OTLP_TOKEN OTEL_EXPORTER_OTLP_ENDPOINT; do
+    if ! grep -q "^${var}=.\+" .env; then
+        echo -e "${RED}❌ Missing $var in .env${NC}"
+        exit 1
     fi
 done
+echo -e "   ${GREEN}✅ .env configured${NC}"
 
-if [ ${#missing_vars[@]} -gt 0 ]; then
-    echo -e "${RED}❌ Missing or empty required variables in .env:${NC}"
-    for var in "${missing_vars[@]}"; do
-        echo "   - $var"
-    done
-    echo ""
-    echo "   👉 Edit .env and add these credentials:"
-    echo "      nano .env"
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}❌ python3 not found${NC}"
     exit 1
 fi
+echo -e "   ${GREEN}✅ python3 available${NC}"
 
-echo -e "${GREEN}✅ .env is properly configured${NC}"
-echo ""
-
-# Start services
-echo -e "${BLUE}3️⃣ Starting Docker services...${NC}"
-docker compose down 2>/dev/null || true  # Clean stop any existing
-docker compose up -d
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Services started${NC}"
-else
-    echo -e "${RED}❌ Failed to start services${NC}"
-    echo "   👉 Check logs with: docker compose logs"
-    exit 1
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Installing requests library...${NC}"
+    pip3 install --quiet requests
 fi
 echo ""
 
-# Wait for services
-echo -e "${BLUE}4️⃣ Waiting for services to initialize...${NC}"
-echo "   (This takes about 30 seconds)"
-for i in {30..1}; do
-    echo -ne "   ${i}s remaining...\r"
-    sleep 1
-done
-echo -e "${GREEN}✅ Services should be ready${NC}"
+########################################
+# Step 2: Start Docker stack
+########################################
+echo -e "${BLUE}2️⃣  Starting Docker stack...${NC}"
+docker compose down 2>/dev/null || true
+docker compose up -d 2>&1 | grep -E "Creating|Started|Error" || true
+echo -e "   ${GREEN}✅ Containers started${NC}"
 echo ""
 
-# Check service status
-echo -e "${BLUE}5️⃣ Verifying services...${NC}"
-docker compose ps
-echo ""
-
-OPENWEBUI_RUNNING=$(docker compose ps | grep openwebui-instrumented | grep -c "Up" || echo "0")
-OTEL_RUNNING=$(docker compose ps | grep otel-collector | grep -c "Up" || echo "0")
-
-if [ "$OPENWEBUI_RUNNING" -eq "0" ]; then
-    echo -e "${RED}❌ OpenWebUI container not running${NC}"
-    echo "   👉 Check logs: docker logs openwebui-instrumented"
-    exit 1
-fi
-
-if [ "$OTEL_RUNNING" -eq "0" ]; then
-    echo -e "${YELLOW}⚠️  OTEL Collector not running${NC}"
-    echo "   Traces won't export to Grafana Cloud"
-    echo "   👉 Check logs: docker logs otel-collector"
-fi
-
-echo -e "${GREEN}✅ Core services are running${NC}"
-echo ""
-
-# Test OpenWebUI endpoint
-echo -e "${BLUE}6️⃣ Testing OpenWebUI endpoint...${NC}"
-max_retries=10
-retry=0
-while [ $retry -lt $max_retries ]; do
-    if curl -s -f http://localhost:3000/health > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ OpenWebUI is responding at http://localhost:3000${NC}"
+########################################
+# Step 3: Wait for OpenWebUI
+########################################
+echo -e "${BLUE}3️⃣  Waiting for OpenWebUI to be ready...${NC}"
+READY=0
+for i in $(seq 1 40); do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health 2>/dev/null || echo "000")
+    if [ "$STATUS" = "200" ]; then
+        echo -e "   ${GREEN}✅ OpenWebUI ready (took ~$((i * 5))s)${NC}"
+        READY=1
         break
-    else
-        retry=$((retry + 1))
-        if [ $retry -lt $max_retries ]; then
-            echo -ne "   Waiting for OpenWebUI... (attempt $retry/$max_retries)\r"
-            sleep 3
-        else
-            echo -e "${YELLOW}⚠️  OpenWebUI health check failed${NC}"
-            echo "   Container might still be starting up"
-            echo "   Try opening http://localhost:3000 in your browser anyway"
-        fi
     fi
+    printf "   Waiting... (%ds)\r" $((i * 5))
+    sleep 5
 done
-echo ""
-
-# Success summary
-echo "================================================"
-echo -e "${GREEN}✅ Docker stack is running!${NC}"
-echo ""
-echo -e "${BLUE}📝 Next steps:${NC}"
-echo ""
-echo "1. Open OpenWebUI in your browser:"
-if [[ "$OS" == "mac" ]]; then
-    echo "   ${GREEN}open http://localhost:3000${NC}"
-else
-    echo "   ${GREEN}http://localhost:3000${NC}"
+if [ "$READY" -eq 0 ]; then
+    echo -e "${RED}❌ OpenWebUI failed to start after 200s${NC}"
+    echo "   Check logs: docker compose logs openwebui"
+    exit 1
 fi
 echo ""
-echo "2. Sign up / log in"
-echo "   (First user becomes admin automatically)"
+
+########################################
+# Step 4: Create admin account
+########################################
+echo -e "${BLUE}4️⃣  Creating admin account...${NC}"
+
+# Try signing in first (account may already exist from persistent volume)
+SIGNIN=$(curl -s -X POST http://localhost:3000/api/v1/auths/signin \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$OPENWEBUI_EMAIL\",\"password\":\"$OPENWEBUI_PASSWORD\"}" 2>/dev/null)
+
+TOKEN=$(echo "$SIGNIN" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ]; then
+    echo -e "   ${GREEN}✅ Signed in (existing account)${NC}"
+else
+    # Create new account
+    SIGNUP=$(curl -s -X POST http://localhost:3000/api/v1/auths/signup \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"$OPENWEBUI_EMAIL\",\"password\":\"$OPENWEBUI_PASSWORD\",\"name\":\"$OPENWEBUI_NAME\"}" 2>/dev/null)
+
+    TOKEN=$(echo "$SIGNUP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+
+    if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ]; then
+        echo -e "   ${GREEN}✅ Admin account created${NC}"
+    else
+        echo -e "${RED}❌ Failed to create account${NC}"
+        echo "   Response: $SIGNUP"
+        echo "   Try manually: open http://localhost:3000 and sign up"
+        exit 1
+    fi
+fi
 echo ""
-echo "3. Configure bots and tools:"
-echo "   ${GREEN}python3 setup-bots.py${NC}"
-echo "   (Will prompt for your OpenWebUI email/password)"
+
+########################################
+# Step 5: Configure bots and tools
+########################################
+echo -e "${BLUE}5️⃣  Configuring bots and tools...${NC}"
+export OPENWEBUI_EMAIL OPENWEBUI_PASSWORD
+python3 setup-bots.py 2>&1 | grep -E "✅|❌|⚠️|Setup Complete"
 echo ""
-echo "4. Generate test traces:"
-echo "   ${GREEN}python3 load-gen-bots.py${NC}"
-echo "   (Generates 85+ traces for Grafana)"
+
+########################################
+# Step 6: Verify everything
+########################################
+echo -e "${BLUE}6️⃣  Verifying setup...${NC}"
+
+# Check models
+BOT_COUNT=$(curl -s http://localhost:3000/api/models \
+    -H "Authorization: Bearer $TOKEN" 2>/dev/null | \
+    python3 -c "import sys,json; d=json.load(sys.stdin); print(len([m for m in d.get('data',[]) if m['id'] in ['hal','marvin','bender','glados','jarvis','cortana']]))" 2>/dev/null || echo "0")
+
+# Check tools
+TOOL_COUNT=$(curl -s http://localhost:3000/api/v1/tools/ \
+    -H "Authorization: Bearer $TOKEN" 2>/dev/null | \
+    python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+
+echo -e "   Bots: ${GREEN}$BOT_COUNT/6${NC}"
+echo -e "   Tools: ${GREEN}$TOOL_COUNT/6${NC}"
+
+if [ "$BOT_COUNT" -eq 6 ] && [ "$TOOL_COUNT" -eq 6 ]; then
+    echo -e "   ${GREEN}✅ All configured!${NC}"
+else
+    echo -e "   ${YELLOW}⚠️  Some items may be missing. Check the UI.${NC}"
+fi
 echo ""
-echo "5. View traces in Grafana Cloud:"
-echo "   - Go to Explore → Tempo"
-echo "   - Query: ${GREEN}{ span.openinference.span.kind = \"LLM\" }${NC}"
-echo "   - Should see traces within 60 seconds"
-echo ""
+
+########################################
+# Step 7: Generate test traffic (optional)
+########################################
+if [[ "$1" == "--with-traffic" ]]; then
+    echo -e "${BLUE}7️⃣  Generating test traces...${NC}"
+    python3 load-gen-bots.py 2>&1 | tail -10
+    echo ""
+fi
+
+########################################
+# Done!
+########################################
 echo "================================================"
-echo -e "${BLUE}📖 Documentation:${NC}"
-echo "   - Full guide: ${GREEN}STARTUP_TEST.md${NC}"
-echo "   - Lightning talk script: ${GREEN}LIGHTNING_TALK.md${NC}"
-echo "   - Speaker notes: ${GREEN}SPEAKER_NOTES.md${NC}"
-echo "   - Demo queries: ${GREEN}DEMO_CHAT.md${NC}"
+echo -e "${GREEN}🎉 Demo is ready!${NC}"
+echo "================================================"
 echo ""
-echo -e "${BLUE}🛠️  Useful commands:${NC}"
-echo "   - View logs: ${GREEN}docker compose logs -f${NC}"
-echo "   - Stop services: ${GREEN}docker compose down${NC}"
-echo "   - Restart: ${GREEN}docker compose restart${NC}"
+echo -e "   🌐 OpenWebUI:  ${GREEN}http://localhost:3000${NC}"
+echo -e "   📧 Email:       ${GREEN}$OPENWEBUI_EMAIL${NC}"
+echo -e "   🔑 Password:    ${GREEN}$OPENWEBUI_PASSWORD${NC}"
 echo ""
-echo "🎤 Ready to demo! Good luck!"
+echo -e "   🤖 Bots:        HAL, Marvin, Bender, GLADOS, JARVIS, Cortana"
+echo -e "   🔧 Tools:       39 custom functions across 6 tool sets"
+echo ""
+echo -e "${BLUE}Quick commands:${NC}"
+echo "   Generate traces:  python3 load-gen-bots.py"
+echo "   View logs:        docker compose logs -f"
+echo "   Stop:             docker compose down"
+echo ""
+echo -e "${BLUE}Grafana query:${NC}"
+echo '   { span.openinference.span.kind = "LLM" }'
 echo ""

@@ -95,7 +95,7 @@ def configure_gemini_connection(auth_header):
                 "enable": True,
                 "tags": [],
                 "prefix_id": "",
-                "model_ids": [],
+                "model_ids": ["models/gemini-3-flash-preview", "models/gemini-3-pro-preview"],
                 "connection_type": "external",
                 "auth_type": "bearer"
             }
@@ -134,6 +134,7 @@ def create_tool(auth_header, tool_data):
     print(f"  Creating tool: {tool_name}...")
 
     try:
+        meta = json.loads(tool_data["meta"]) if isinstance(tool_data["meta"], str) else tool_data["meta"]
         response = requests.post(
             f"{OPENWEBUI_URL}/api/v1/tools/create",
             headers={
@@ -144,8 +145,7 @@ def create_tool(auth_header, tool_data):
                 "id": tool_data["id"],
                 "name": tool_data["name"],
                 "content": tool_data["content"],
-                "specs": json.loads(tool_data["specs"]) if isinstance(tool_data["specs"], str) else tool_data["specs"],
-                "meta": json.loads(tool_data["meta"]) if isinstance(tool_data["meta"], str) else tool_data["meta"]
+                "meta": meta
             },
             timeout=30
         )
@@ -153,10 +153,16 @@ def create_tool(auth_header, tool_data):
         if response.status_code in [200, 201]:
             print(f"    ✅ Tool '{tool_name}' created")
             return True
-        else:
-            # Tool might already exist
-            print(f"    ⚠️  Tool '{tool_name}' may already exist (status {response.status_code})")
+        elif response.status_code == 400:
+            detail = response.json().get("detail", "")
+            if "already exists" in detail.lower() or "duplicate" in detail.lower():
+                print(f"    ✅ Tool '{tool_name}' already exists (skipped)")
+            else:
+                print(f"    ⚠️  Tool '{tool_name}' returned 400: {detail[:100]}")
             return True
+        else:
+            print(f"    ❌ Tool '{tool_name}' failed (status {response.status_code})")
+            return False
 
     except Exception as e:
         print(f"    ❌ Failed to create tool '{tool_name}': {e}")
@@ -173,7 +179,7 @@ def create_bot(auth_header, bot_data):
         params = json.loads(bot_data["params"]) if isinstance(bot_data["params"], str) else bot_data["params"]
 
         response = requests.post(
-            f"{OPENWEBUI_URL}/api/v1/models/add",
+            f"{OPENWEBUI_URL}/api/v1/models/create",
             headers={
                 "Authorization": auth_header,
                 "Content-Type": "application/json"

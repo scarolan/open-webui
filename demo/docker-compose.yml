@@ -1,3 +1,5 @@
+name: openwebui-demo
+
 services:
   # Instrumented OpenWebUI - builds from local fork with LLM observability
   openwebui:
