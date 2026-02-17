@@ -42,8 +42,15 @@ def load_gemini_key():
     return input("Enter your Gemini API key: ").strip()
 
 GEMINI_API_KEY = load_gemini_key()
-EMAIL = input("Enter your OpenWebUI email: ").strip()
-PASSWORD = input("Enter your OpenWebUI password: ").strip()
+
+# Get email/password from environment or prompt
+EMAIL = os.getenv("OPENWEBUI_EMAIL")
+PASSWORD = os.getenv("OPENWEBUI_PASSWORD")
+
+if not EMAIL:
+    EMAIL = input("Enter your OpenWebUI email: ").strip()
+if not PASSWORD:
+    PASSWORD = input("Enter your OpenWebUI password: ").strip()
 
 def authenticate():
     """Authenticate with OpenWebUI and return Bearer token"""
@@ -75,62 +82,45 @@ def configure_gemini_connection(auth_header):
     """Configure Gemini API connection in admin settings"""
     print("🔌 Configuring Gemini connection...")
 
-    admin_config = {
-        "version": 0,
-        "ui": {
-            "enable_signup": False
-        },
-        "openai": {
-            "enable": True,
-            "api_base_urls": [
-                "https://generativelanguage.googleapis.com/v1beta/openai"
-            ],
-            "api_keys": [
-                GEMINI_API_KEY
-            ],
-            "api_configs": {
-                "0": {
-                    "enable": True,
-                    "tags": [],
-                    "prefix_id": "",
-                    "model_ids": [],
-                    "connection_type": "external",
-                    "auth_type": "bearer"
-                }
+    config_payload = {
+        "ENABLE_OPENAI_API": True,
+        "OPENAI_API_BASE_URLS": [
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+        ],
+        "OPENAI_API_KEYS": [
+            GEMINI_API_KEY
+        ],
+        "OPENAI_API_CONFIGS": {
+            "0": {
+                "enable": True,
+                "tags": [],
+                "prefix_id": "",
+                "model_ids": [],
+                "connection_type": "external",
+                "auth_type": "bearer"
             }
-        },
-        "evaluation": {
-            "arena": {
-                "enable": False,
-                "models": []
-            }
-        },
-        "ollama": {
-            "enable": False,
-            "base_urls": [],
-            "api_configs": {}
         }
     }
 
     try:
         response = requests.post(
-            f"{OPENWEBUI_URL}/api/config/update",
+            f"{OPENWEBUI_URL}/openai/config/update",
             headers={
                 "Authorization": auth_header,
                 "Content-Type": "application/json"
             },
-            json=admin_config,
+            json=config_payload,
             timeout=30
         )
 
         if response.status_code in [200, 201]:
             print("  ✅ Gemini connection configured")
-            print("  📡 API endpoint: https://generativelanguage.googleapis.com")
+            print("  📡 API endpoint: https://generativelanguage.googleapis.com/v1beta/openai")
             print("  🔑 API key configured")
             return True
         else:
-            print(f"  ⚠️  Configuration may have failed (status {response.status_code})")
-            print(f"  Response: {response.text[:200]}")
+            print(f"  ⚠️  Configuration failed (status {response.status_code})")
+            print(f"  Response: {response.text[:500]}")
             return False
 
     except Exception as e:

@@ -77,5 +77,4 @@ networks:
 
 volumes:
   openwebui-data:
-    external: true
-    name: scdemografananet_openwebui-data
+    driver: local

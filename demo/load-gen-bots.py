@@ -17,12 +17,13 @@ import requests
 import json
 import time
 import sys
+import os
 from typing import Tuple, List
 
 # Configuration
 OPENWEBUI_URL = "http://localhost:3000"
-EMAIL = "sean.carolan@grafana.com"
-PASSWORD = "open-sesame"
+EMAIL = os.getenv("OPENWEBUI_EMAIL", "demo@example.com")
+PASSWORD = os.getenv("OPENWEBUI_PASSWORD", "changeme")
 
 # Bot-specific prompts designed to trigger tool calls and varied token usage
 BOT_PROMPTS: List[Tuple[str, str]] = [
