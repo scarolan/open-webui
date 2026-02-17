@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 from typing import Optional
+from urllib.parse import urlparse
 
 import aiohttp
 from aiocache import cached
@@ -17,13 +18,15 @@ from fastapi.responses import (
     JSONResponse,
     PlainTextResponse,
 )
-from pydantic import BaseModel
-from starlette.background import BackgroundTask
+from pydantic import BaseModel, ConfigDict
+
 from sqlalchemy.orm import Session
 
 from open_webui.internal.db import get_session
 
 from open_webui.models.models import Models
+from open_webui.models.access_grants import AccessGrants
+from open_webui.models.groups import Groups
 from open_webui.config import (
     CACHE_DIR,
 )
@@ -33,6 +36,7 @@ from open_webui.env import (
     AIOHTTP_CLIENT_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
     ENABLE_FORWARD_USER_INFO_HEADERS,
+    FORWARD_SESSION_INFO_HEADER_CHAT_ID,
     BYPASS_MODEL_ACCESS_CONTROL,
 )
 from open_webui.models.users import UserModel
@@ -45,18 +49,18 @@ from open_webui.utils.payload import (
     apply_system_prompt_to_body,
 )
 from open_webui.utils.misc import (
+    cleanup_response,
     convert_logit_bias_input_to_json,
     stream_chunks_handler,
+    stream_wrapper,
 )
+
+from open_webui.utils.auth import get_admin_user, get_verified_user
+from open_webui.utils.headers import include_user_info_headers
 from open_webui.utils.telemetry.llm_instrumentation import (
     LLMSpanManager,
     detect_provider_from_url,
 )
-
-from open_webui.utils.auth import get_admin_user, get_verified_user
-from open_webui.utils.access_control import has_access
-from open_webui.utils.headers import include_user_info_headers
-
 
 log = logging.getLogger(__name__)
 
@@ -89,16 +93,6 @@ async def send_get_request(url, key=None, user: UserModel = None):
         # Handle connection error here
         log.error(f"Connection error: {e}")
         return None
-
-
-async def cleanup_response(
-    response: Optional[aiohttp.ClientResponse],
-    session: Optional[aiohttp.ClientSession],
-):
-    if response:
-        response.close()
-    if session:
-        await session.close()
 
 
 def openai_reasoning_model_handler(payload):
@@ -146,7 +140,7 @@ async def get_headers_and_cookies(
     if ENABLE_FORWARD_USER_INFO_HEADERS and user:
         headers = include_user_info_headers(headers, user)
         if metadata and metadata.get("chat_id"):
-            headers["X-OpenWebUI-Chat-Id"] = metadata.get("chat_id")
+            headers[FORWARD_SESSION_INFO_HEADER_CHAT_ID] = metadata.get("chat_id")
 
     token = None
     auth_type = config.get("auth_type")
@@ -351,37 +345,41 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
     if not request.app.state.config.ENABLE_OPENAI_API:
         return []
 
+    # Cache config values locally to avoid repeated Redis lookups.
+    # Each access to request.app.state.config.<KEY> triggers a Redis GET;
+    # caching here avoids hundreds of redundant round-trips.
+    api_base_urls = request.app.state.config.OPENAI_API_BASE_URLS
+    api_keys = list(request.app.state.config.OPENAI_API_KEYS)
+    api_configs = request.app.state.config.OPENAI_API_CONFIGS
+
     # Check if API KEYS length is same than API URLS length
-    num_urls = len(request.app.state.config.OPENAI_API_BASE_URLS)
-    num_keys = len(request.app.state.config.OPENAI_API_KEYS)
+    num_urls = len(api_base_urls)
+    num_keys = len(api_keys)
 
     if num_keys != num_urls:
         # if there are more keys than urls, remove the extra keys
         if num_keys > num_urls:
-            new_keys = request.app.state.config.OPENAI_API_KEYS[:num_urls]
-            request.app.state.config.OPENAI_API_KEYS = new_keys
+            api_keys = api_keys[:num_urls]
+            request.app.state.config.OPENAI_API_KEYS = api_keys
         # if there are more urls than keys, add empty keys
         else:
-            request.app.state.config.OPENAI_API_KEYS += [""] * (num_urls - num_keys)
+            api_keys += [""] * (num_urls - num_keys)
+            request.app.state.config.OPENAI_API_KEYS = api_keys
 
     request_tasks = []
-    for idx, url in enumerate(request.app.state.config.OPENAI_API_BASE_URLS):
-        if (str(idx) not in request.app.state.config.OPENAI_API_CONFIGS) and (
-            url not in request.app.state.config.OPENAI_API_CONFIGS  # Legacy support
-        ):
+    for idx, url in enumerate(api_base_urls):
+        if (str(idx) not in api_configs) and (url not in api_configs):  # Legacy support
             request_tasks.append(
                 send_get_request(
                     f"{url}/models",
-                    request.app.state.config.OPENAI_API_KEYS[idx],
+                    api_keys[idx],
                     user=user,
                 )
             )
         else:
-            api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
+            api_config = api_configs.get(
                 str(idx),
-                request.app.state.config.OPENAI_API_CONFIGS.get(
-                    url, {}
-                ),  # Legacy support
+                api_configs.get(url, {}),  # Legacy support
             )
 
             enable = api_config.get("enable", True)
@@ -392,7 +390,7 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
                     request_tasks.append(
                         send_get_request(
                             f"{url}/models",
-                            request.app.state.config.OPENAI_API_KEYS[idx],
+                            api_keys[idx],
                             user=user,
                         )
                     )
@@ -421,12 +419,10 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
 
     for idx, response in enumerate(responses):
         if response:
-            url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
-            api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
+            url = api_base_urls[idx]
+            api_config = api_configs.get(
                 str(idx),
-                request.app.state.config.OPENAI_API_CONFIGS.get(
-                    url, {}
-                ),  # Legacy support
+                api_configs.get(url, {}),  # Legacy support
             )
 
             connection_type = api_config.get("connection_type", "external")
@@ -462,13 +458,30 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
 
 async def get_filtered_models(models, user, db=None):
     # Filter models based on user access control
+    model_ids = [model["id"] for model in models.get("data", [])]
+    model_infos = {
+        model_info.id: model_info
+        for model_info in Models.get_models_by_ids(model_ids, db=db)
+    }
+    user_group_ids = {
+        group.id for group in Groups.get_groups_by_member_id(user.id, db=db)
+    }
+
+    # Batch-fetch accessible resource IDs in a single query instead of N has_access calls
+    accessible_model_ids = AccessGrants.get_accessible_resource_ids(
+        user_id=user.id,
+        resource_type="model",
+        resource_ids=list(model_infos.keys()),
+        permission="read",
+        user_group_ids=user_group_ids,
+        db=db,
+    )
+
     filtered_models = []
     for model in models.get("data", []):
-        model_info = Models.get_model_by_id(model["id"], db=db)
+        model_info = model_infos.get(model["id"])
         if model_info:
-            if user.id == model_info.user_id or has_access(
-                user.id, type="read", access_control=model_info.access_control, db=db
-            ):
+            if user.id == model_info.user_id or model_info.id in accessible_model_ids:
                 filtered_models.append(model)
     return filtered_models
 
@@ -482,6 +495,10 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
 
     if not request.app.state.config.ENABLE_OPENAI_API:
         return {"data": []}
+
+    # Cache config value locally to avoid repeated Redis lookups inside
+    # the nested loop in get_merged_models (one GET per model otherwise).
+    api_base_urls = request.app.state.config.OPENAI_API_BASE_URLS
 
     responses = await get_all_models_responses(request, user=user)
 
@@ -516,10 +533,10 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
                 for model in model_list:
                     model_id = model.get("id") or model.get("name")
 
-                    if (
-                        "api.openai.com"
-                        in request.app.state.config.OPENAI_API_BASE_URLS[idx]
-                        and not is_supported_openai_models(model_id)
+                    base_url = api_base_urls[idx]
+                    hostname = urlparse(base_url).hostname if base_url else None
+                    if hostname == "api.openai.com" and not is_supported_openai_models(
+                        model_id
                     ):
                         # Skip unwanted OpenAI models
                         continue
@@ -548,6 +565,9 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
 async def get_models(
     request: Request, url_idx: Optional[int] = None, user=Depends(get_verified_user)
 ):
+    if not request.app.state.config.ENABLE_OPENAI_API:
+        raise HTTPException(status_code=503, detail="OpenAI API is disabled")
+
     models = {
         "data": [],
     }
@@ -588,9 +608,12 @@ async def get_models(
                         if r.status != 200:
                             # Extract response error details if available
                             error_detail = f"HTTP Error: {r.status}"
-                            res = await r.json()
-                            if "error" in res:
-                                error_detail = f"External Error: {res['error']}"
+                            try:
+                                res = await r.json()
+                                if "error" in res:
+                                    error_detail = f"External Error: {res['error']}"
+                            except Exception:
+                                pass
                             raise Exception(error_detail)
 
                         response_data = await r.json()
@@ -798,6 +821,115 @@ def convert_to_azure_payload(url, payload: dict, api_version: str):
     return url, payload
 
 
+def convert_to_responses_payload(payload: dict) -> dict:
+    """
+    Convert Chat Completions payload to Responses API format.
+
+    Chat Completions: { messages: [{role, content}], ... }
+    Responses API: { input: [{type: "message", role, content: [...]}], instructions: "system" }
+    """
+    messages = payload.pop("messages", [])
+
+    system_content = ""
+    input_items = []
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        # Check for stored output items (from previous Responses API turn)
+        stored_output = msg.get("output")
+        if stored_output and isinstance(stored_output, list):
+            input_items.extend(stored_output)
+            continue
+
+        if role == "system":
+            if isinstance(content, str):
+                system_content = content
+            elif isinstance(content, list):
+                system_content = "\n".join(
+                    p.get("text", "") for p in content if p.get("type") == "text"
+                )
+            continue
+
+        # Convert content format
+        text_type = "output_text" if role == "assistant" else "input_text"
+
+        if isinstance(content, str):
+            content_parts = [{"type": text_type, "text": content}]
+        elif isinstance(content, list):
+            content_parts = []
+            for part in content:
+                if part.get("type") == "text":
+                    content_parts.append(
+                        {"type": text_type, "text": part.get("text", "")}
+                    )
+                elif part.get("type") == "image_url":
+                    url_data = part.get("image_url", {})
+                    url = (
+                        url_data.get("url", "")
+                        if isinstance(url_data, dict)
+                        else url_data
+                    )
+                    content_parts.append({"type": "input_image", "image_url": url})
+        else:
+            content_parts = [{"type": text_type, "text": str(content)}]
+
+        input_items.append({"type": "message", "role": role, "content": content_parts})
+
+    responses_payload = {**payload, "input": input_items}
+
+    if system_content:
+        responses_payload["instructions"] = system_content
+
+    if "max_tokens" in responses_payload:
+        responses_payload["max_output_tokens"] = responses_payload.pop("max_tokens")
+
+    # Remove Chat Completions-only parameters not supported by the Responses API
+    for unsupported_key in (
+        "stream_options",
+        "logit_bias",
+        "frequency_penalty",
+        "presence_penalty",
+        "stop",
+    ):
+        responses_payload.pop(unsupported_key, None)
+
+    # Convert Chat Completions tools format to Responses API format
+    # Chat Completions: {"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}
+    # Responses API:    {"type": "function", "name": ..., "description": ..., "parameters": ...}
+    if "tools" in responses_payload and isinstance(responses_payload["tools"], list):
+        converted_tools = []
+        for tool in responses_payload["tools"]:
+            if isinstance(tool, dict) and "function" in tool:
+                func = tool["function"]
+                converted_tool = {"type": tool.get("type", "function")}
+                if isinstance(func, dict):
+                    converted_tool["name"] = func.get("name", "")
+                    if "description" in func:
+                        converted_tool["description"] = func["description"]
+                    if "parameters" in func:
+                        converted_tool["parameters"] = func["parameters"]
+                    if "strict" in func:
+                        converted_tool["strict"] = func["strict"]
+                converted_tools.append(converted_tool)
+            else:
+                # Already in correct format or unknown format, pass through
+                converted_tools.append(tool)
+        responses_payload["tools"] = converted_tools
+
+    return responses_payload
+
+
+def convert_responses_result(response: dict) -> dict:
+    """
+    Convert non-streaming Responses API result.
+    Just add done flag - pass through raw response, frontend handles output.
+    """
+    response["done"] = True
+    return response
+
+
 @router.post("/chat/completions")
 async def generate_chat_completion(
     request: Request,
@@ -805,8 +937,11 @@ async def generate_chat_completion(
     user=Depends(get_verified_user),
     bypass_filter: Optional[bool] = False,
     bypass_system_prompt: bool = False,
-    db: Session = Depends(get_session),
 ):
+    # NOTE: We intentionally do NOT use Depends(get_session) here.
+    # Database operations (get_model_by_id, AccessGrants.has_access) manage their own short-lived sessions.
+    # This prevents holding a connection during the entire LLM call (30-60+ seconds),
+    # which would exhaust the connection pool under concurrent load.
     if BYPASS_MODEL_ACCESS_CONTROL:
         bypass_filter = True
 
@@ -816,10 +951,9 @@ async def generate_chat_completion(
     metadata = payload.pop("metadata", None)
 
     model_id = form_data.get("model")
-    model_info = Models.get_model_by_id(model_id, db=db)
-
     # Store original model ID (bot name) for telemetry before it gets replaced
     original_model_id = model_id
+    model_info = Models.get_model_by_id(model_id)
 
     # Check model info and override the payload
     if model_info:
@@ -843,13 +977,17 @@ async def generate_chat_completion(
 
         # Check if user has access to the model
         if not bypass_filter and user.role == "user":
+            user_group_ids = {
+                group.id for group in Groups.get_groups_by_member_id(user.id)
+            }
             if not (
                 user.id == model_info.user_id
-                or has_access(
-                    user.id,
-                    type="read",
-                    access_control=model_info.access_control,
-                    db=db,
+                or AccessGrants.has_access(
+                    user_id=user.id,
+                    resource_type="model",
+                    resource_id=model_info.id,
+                    permission="read",
+                    user_group_ids=user_group_ids,
                 )
             ):
                 raise HTTPException(
@@ -863,8 +1001,13 @@ async def generate_chat_completion(
                 detail="Model not found",
             )
 
-    await get_all_models(request, user=user)
-    model = request.app.state.OPENAI_MODELS.get(model_id)
+    # Check if model is already in app state cache to avoid expensive get_all_models() call
+    models = request.app.state.OPENAI_MODELS
+    if not models or model_id not in models:
+        await get_all_models(request, user=user)
+        models = request.app.state.OPENAI_MODELS
+    model = models.get(model_id)
+
     if model:
         idx = model["urlIdx"]
     else:
@@ -920,6 +1063,8 @@ async def generate_chat_completion(
         request, url, key, api_config, metadata, user=user
     )
 
+    is_responses = api_config.get("api_type") == "responses"
+
     if api_config.get("azure", False):
         api_version = api_config.get("api_version", "2023-03-15-preview")
         request_url, payload = convert_to_azure_payload(url, payload, api_version)
@@ -930,16 +1075,27 @@ async def generate_chat_completion(
             headers["api-key"] = key
 
         headers["api-version"] = api_version
-        request_url = f"{request_url}/chat/completions?api-version={api_version}"
-    else:
-        request_url = f"{url}/chat/completions"
 
-    # Parse payload to extract messages for LLM span
-    payload_dict = json.loads(payload) if isinstance(payload, str) else payload
+        if is_responses:
+            payload = convert_to_responses_payload(payload)
+            request_url = f"{request_url}/responses?api-version={api_version}"
+        else:
+            request_url = f"{request_url}/chat/completions?api-version={api_version}"
+    else:
+        if is_responses:
+            payload = convert_to_responses_payload(payload)
+            request_url = f"{url}/responses"
+        else:
+            request_url = f"{url}/chat/completions"
+
+    # Parse payload to extract messages for LLM span before serializing
+    payload_dict = payload if isinstance(payload, dict) else payload
     # Use original_model_id (bot name like "hal") for span, not the base model
     model_name = original_model_id if original_model_id else payload_dict.get("model", "unknown")
     base_model = payload_dict.get("model", None)  # Underlying LLM (e.g., gemini-3-flash-preview)
     provider = detect_provider_from_url(request_url)
+
+    payload = json.dumps(payload)
 
     r = None
     session = None
@@ -953,7 +1109,6 @@ async def generate_chat_completion(
             llm_span.span.set_attribute("llm.base_model", base_model)
         # Set input messages
         llm_span.set_input(payload_dict.get("messages", []))
-
         # Set invocation parameters (temperature, max_tokens, etc.)
         llm_span.set_invocation_parameters(payload_dict)
 
@@ -965,7 +1120,7 @@ async def generate_chat_completion(
             r = await session.request(
                 method="POST",
                 url=request_url,
-                data=payload if isinstance(payload, str) else json.dumps(payload),
+                data=payload,
                 headers=headers,
                 cookies=cookies,
                 ssl=AIOHTTP_CLIENT_SESSION_SSL,
@@ -975,48 +1130,32 @@ async def generate_chat_completion(
             if "text/event-stream" in r.headers.get("Content-Type", ""):
                 streaming = True
 
-                # For streaming, we need to wrap the stream handler to extract usage
-                async def llm_stream_handler():
-                    """Stream handler that captures token usage and tool calls from SSE events"""
+                # Custom stream handler that captures token usage and tool calls from SSE events
+                async def llm_stream_handler(content):
                     accumulated_content = ""
                     accumulated_tool_calls = []
                     try:
-                        async for chunk in stream_chunks_handler(r.content):
-                            # Try to parse SSE data to extract usage and content
+                        async for chunk in stream_chunks_handler(content):
                             try:
                                 if chunk.startswith(b"data: "):
                                     data_str = chunk[6:].decode("utf-8").strip()
                                     if data_str and data_str != "[DONE]":
                                         data = json.loads(data_str)
-
                                         # Extract token usage (sent in final chunk)
                                         if "usage" in data:
                                             llm_span.set_usage(data["usage"])
-
                                         # Accumulate response content and tool calls
                                         if "choices" in data and data["choices"]:
                                             delta = data["choices"][0].get("delta", {})
-
-                                            # Accumulate content
                                             content_delta = delta.get("content", "")
                                             if content_delta:
                                                 accumulated_content += content_delta
-
-                                            # Accumulate tool calls
                                             if "tool_calls" in delta:
-                                                log.info(f"DEBUG STREAM: Found tool_calls in delta: {delta['tool_calls']}")
                                                 accumulated_tool_calls.extend(delta["tool_calls"])
-                            except:
+                            except Exception:
                                 pass  # Don't break streaming if parsing fails
-
                             yield chunk
-
                         # Set accumulated output and tool calls at end of stream
-                        log.info(f"=== STREAM END ===")
-                        log.info(f"Accumulated tool_calls: {json.dumps(accumulated_tool_calls, indent=2)[:1000]}")
-                        log.info(f"Tool calls count: {len(accumulated_tool_calls)}")
-                        log.info(f"=== END STREAM ===")
-
                         llm_span.set_output(
                             accumulated_content if accumulated_content else None,
                             tool_calls=accumulated_tool_calls if accumulated_tool_calls else None
@@ -1026,20 +1165,13 @@ async def generate_chat_completion(
                         raise
 
                 return StreamingResponse(
-                    llm_stream_handler(),
+                    stream_wrapper(r, session, llm_stream_handler),
                     status_code=r.status,
                     headers=dict(r.headers),
-                    background=BackgroundTask(
-                        cleanup_response, response=r, session=session
-                    ),
                 )
             else:
                 try:
                     response = await r.json()
-                    # DEBUG: Log the ENTIRE response to see tool_calls structure
-                    log.info(f"=== FULL LLM RESPONSE ===")
-                    log.info(f"{json.dumps(response, indent=2)[:2000]}")
-                    log.info(f"=== END RESPONSE ===")
                 except Exception as e:
                     log.error(e)
                     response = await r.text()
@@ -1049,7 +1181,6 @@ async def generate_chat_completion(
                     # Extract token usage
                     if "usage" in response:
                         llm_span.set_usage(response["usage"])
-
                     # Extract output message and tool calls
                     if "choices" in response and response["choices"]:
                         choice = response["choices"][0]
@@ -1057,12 +1188,6 @@ async def generate_chat_completion(
                             message = choice["message"]
                             content = message.get("content", "")
                             tool_calls = message.get("tool_calls")
-
-                            # DEBUG: Log what we found in the response
-                            log.info(f"DEBUG: Response message keys: {list(message.keys())}")
-                            log.info(f"DEBUG: tool_calls value: {tool_calls}")
-                            log.info(f"DEBUG: Full message (truncated): {str(message)[:500]}")
-
                             llm_span.set_output(content, tool_calls=tool_calls)
 
                 if r.status >= 400:
@@ -1070,6 +1195,10 @@ async def generate_chat_completion(
                         return JSONResponse(status_code=r.status, content=response)
                     else:
                         return PlainTextResponse(status_code=r.status, content=response)
+
+                # Convert Responses API result to simple format
+                if is_responses and isinstance(response, dict):
+                    response = convert_responses_result(response)
 
                 return response
         except Exception as e:
@@ -1100,9 +1229,12 @@ async def embeddings(request: Request, form_data: dict, user):
     # Prepare payload/body
     body = json.dumps(form_data)
     # Find correct backend url/key based on model
-    await get_all_models(request, user=user)
     model_id = form_data.get("model")
+    # Check if model is already in app state cache to avoid expensive get_all_models() call
     models = request.app.state.OPENAI_MODELS
+    if not models or model_id not in models:
+        await get_all_models(request, user=user)
+        models = request.app.state.OPENAI_MODELS
     if model_id in models:
         idx = models[model_id]["urlIdx"]
 
@@ -1133,12 +1265,9 @@ async def embeddings(request: Request, form_data: dict, user):
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
             return StreamingResponse(
-                r.content,
+                stream_wrapper(r, session),
                 status_code=r.status,
                 headers=dict(r.headers),
-                background=BackgroundTask(
-                    cleanup_response, response=r, session=session
-                ),
             )
         else:
             try:
@@ -1166,6 +1295,129 @@ async def embeddings(request: Request, form_data: dict, user):
             await cleanup_response(r, session)
 
 
+class ResponsesForm(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    model: str
+    input: Optional[list | str] = None
+    instructions: Optional[str] = None
+    stream: Optional[bool] = None
+    temperature: Optional[float] = None
+    max_output_tokens: Optional[int] = None
+    top_p: Optional[float] = None
+    tools: Optional[list] = None
+    tool_choice: Optional[str | dict] = None
+    text: Optional[dict] = None
+    truncation: Optional[str] = None
+    metadata: Optional[dict] = None
+    store: Optional[bool] = None
+    reasoning: Optional[dict] = None
+    previous_response_id: Optional[str] = None
+
+
+@router.post("/responses")
+async def responses(
+    request: Request,
+    form_data: ResponsesForm,
+    user=Depends(get_verified_user),
+):
+    """
+    Forward requests to the OpenAI Responses API endpoint.
+    Routes to the correct upstream backend based on the model field.
+    """
+    payload = form_data.model_dump(exclude_none=True)
+    body = json.dumps(payload)
+
+    idx = 0
+    model_id = form_data.model
+    if model_id:
+        models = request.app.state.OPENAI_MODELS
+        if not models or model_id not in models:
+            await get_all_models(request, user=user)
+            models = request.app.state.OPENAI_MODELS
+        if model_id in models:
+            idx = models[model_id]["urlIdx"]
+
+    url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
+    key = request.app.state.config.OPENAI_API_KEYS[idx]
+    api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
+        str(idx),
+        request.app.state.config.OPENAI_API_CONFIGS.get(url, {}),  # Legacy support
+    )
+
+    r = None
+    session = None
+    streaming = False
+
+    try:
+        headers, cookies = await get_headers_and_cookies(
+            request, url, key, api_config, user=user
+        )
+
+        if api_config.get("azure", False):
+            api_version = api_config.get("api_version", "2023-03-15-preview")
+
+            auth_type = api_config.get("auth_type", "bearer")
+            if auth_type not in ("azure_ad", "microsoft_entra_id"):
+                headers["api-key"] = key
+
+            headers["api-version"] = api_version
+
+            model = payload.get("model", "")
+            request_url = (
+                f"{url}/openai/deployments/{model}/responses?api-version={api_version}"
+            )
+        else:
+            request_url = f"{url}/responses"
+
+        session = aiohttp.ClientSession(
+            trust_env=True,
+            timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
+        )
+        r = await session.request(
+            method="POST",
+            url=request_url,
+            data=body,
+            headers=headers,
+            cookies=cookies,
+            ssl=AIOHTTP_CLIENT_SESSION_SSL,
+        )
+
+        # Check if response is SSE
+        if "text/event-stream" in r.headers.get("Content-Type", ""):
+            streaming = True
+            return StreamingResponse(
+                stream_wrapper(r, session),
+                status_code=r.status,
+                headers=dict(r.headers),
+            )
+        else:
+            try:
+                response_data = await r.json()
+            except Exception:
+                response_data = await r.text()
+
+            if r.status >= 400:
+                if isinstance(response_data, (dict, list)):
+                    return JSONResponse(status_code=r.status, content=response_data)
+                else:
+                    return PlainTextResponse(
+                        status_code=r.status, content=response_data
+                    )
+
+            return response_data
+
+    except Exception as e:
+        log.exception(e)
+        raise HTTPException(
+            status_code=r.status if r else 500,
+            detail="Open WebUI: Server Connection Error",
+        )
+    finally:
+        if not streaming:
+            await cleanup_response(r, session)
+
+
 @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
     """
@@ -1174,7 +1426,24 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
 
     body = await request.body()
 
+    # Parse JSON body to resolve model-based routing
+    payload = None
+    if body:
+        try:
+            payload = json.loads(body)
+        except (json.JSONDecodeError, ValueError):
+            payload = None
+
     idx = 0
+    model_id = payload.get("model") if isinstance(payload, dict) else None
+    if model_id:
+        models = request.app.state.OPENAI_MODELS
+        if not models or model_id not in models:
+            await get_all_models(request, user=user)
+            models = request.app.state.OPENAI_MODELS
+        if model_id in models:
+            idx = models[model_id]["urlIdx"]
+
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
     key = request.app.state.config.OPENAI_API_KEYS[idx]
     api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
@@ -1225,12 +1494,9 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
             return StreamingResponse(
-                r.content,
+                stream_wrapper(r, session),
                 status_code=r.status,
                 headers=dict(r.headers),
-                background=BackgroundTask(
-                    cleanup_response, response=r, session=session
-                ),
             )
         else:
             try:
