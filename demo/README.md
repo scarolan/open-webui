@@ -4,6 +4,11 @@
 
 6 bot personalities across **three LLM providers** (OpenAI + Anthropic + Google Gemini), each on a unique model, with 39 custom tool functions and OpenInference-compliant traces exported to Grafana Cloud Tempo.
 
+<p>
+<img src="docs/images/openwebui-dashboard-screenshot1.png" width="48%" alt="Grafana Dashboard" />
+<img src="docs/images/openwebui-chatbot-screenshot2.png" width="48%" alt="OpenWebUI Chatbot" />
+</p>
+
 ## Quick Start
 
 ```bash

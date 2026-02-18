@@ -2,13 +2,18 @@
 
 Instrumented fork of [Open WebUI](https://github.com/open-webui/open-webui) with OpenTelemetry tracing for LLM observability. Traces are exported to Grafana Cloud Tempo using OpenInference semantic conventions.
 
-**6 bot personalities** | **39 custom tool functions** | **OpenInference-compliant traces**
+**6 bot personalities** | **3 LLM providers** | **39 custom tool functions** | **OpenInference-compliant traces**
+
+<p>
+<img src="demo/docs/images/openwebui-dashboard-screenshot1.png" width="48%" alt="Grafana Dashboard" />
+<img src="demo/docs/images/openwebui-chatbot-screenshot2.png" width="48%" alt="OpenWebUI Chatbot" />
+</p>
 
 ## Get Started
 
 ```bash
 cd demo/
-cp .env.example .env     # Add Gemini + Grafana Cloud creds
+cp .env.example .env     # Add OpenAI, Anthropic, Gemini + Grafana Cloud creds
 make start               # Preflight, docker compose up, bots configured
 ```
 
@@ -32,7 +37,9 @@ Everything else lives in the `demo/` directory and doesn't touch upstream code.
 ```
 User Browser (localhost:3000)
     → OpenWebUI (instrumented with LLMSpanManager)
-        → Gemini API
+        → OpenAI API (HAL → gpt-4o, JARVIS → gpt-4o-mini)
+        → LiteLLM Proxy → Anthropic API (Marvin → Sonnet, Bender → Haiku)
+        → Gemini API (GLADOS → gemini-3-pro, Cortana → gemini-3-flash)
         → OTEL Collector (tail sampling, LLM spans only)
             → Grafana Cloud Tempo
 ```
