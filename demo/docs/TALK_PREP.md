@@ -10,42 +10,36 @@
 
 ```bash
 # Clone/pull latest
-cd ~/git_repos/open-webui/demo
+cd ~/git_repos/grafana-cloud-openwebui-demo/demo
 
 # Make sure .env is configured
-cat .env | grep -E "GEMINI_API_KEY|GRAFANA_OTLP"
-# Should show your keys - if not, edit .env
+cat .env | grep -E "OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|GRAFANA_OTLP"
+# Should show all keys - if not, edit .env
 
-# Start stack
-docker compose up -d
+# Start stack (preflight + compose + bot setup)
+make start
 
-# Wait 30 seconds, then check services
+# Check services
 docker ps
-# Should see: openwebui-instrumented, otel-collector
+# Should see: openwebui, litellm, otel-collector
 
 # Open http://localhost:3000
-# Sign up / log in
-
-# Run setup script
-python3 setup-bots.py
-# Enter your email/password
-# Wait for success messages
-
 # Verify bots appear in model dropdown
-# Should see: HAL 9000, Marvin, Bender, GLADOS, JARVIS, Cortana
+# Should see: HAL, JARVIS, Marvin, Bender, GLADOS, Cortana
 ```
 
 ### 2. Generate Test Data (5 minutes)
 
 ```bash
-# Generate 30-50 traces across all bots
-python3 load-gen-bots.py
+# Generate traces across all 6 bots on all 3 providers
+make load-gen          # 33 bot trace requests
+make load-gen-tools    # 25 tool call trace requests
 
 # Wait 60 seconds for traces to propagate to Grafana Cloud
 
 # Open Grafana → Explore → Tempo
 # Query: { span.openinference.span.kind = "LLM" }
-# Should see traces from all 6 bots
+# Should see traces from all 6 bots across 3 providers
 ```
 
 ### 3. Pre-Identify Key Traces (10 minutes)
@@ -121,11 +115,13 @@ Screenshot these and save:
 
 ### Final Checks:
 
-- [ ] Docker stack running: `docker ps`
+- [ ] Docker stack running: `docker ps` (3 containers: openwebui, litellm, otel-collector)
 - [ ] OpenWebUI accessible: http://localhost:3000
+- [ ] All 3 providers working (test one bot from each: HAL/OpenAI, Marvin/Anthropic, GLADOS/Gemini)
 - [ ] Grafana Cloud accessible (test login)
-- [ ] Test traces visible in Grafana (last 15 mins)
-- [ ] Browser tabs set up (OpenWebUI + Grafana)
+- [ ] Test traces visible in Grafana (last 15 mins) across all providers
+- [ ] Cost-by-bot panel populated with data
+- [ ] Browser tabs set up (OpenWebUI + Grafana dashboard)
 - [ ] Backup screenshots ready
 - [ ] Phone on silent / airplane mode
 - [ ] Water bottle nearby
@@ -235,10 +231,13 @@ Screenshot these and save:
 
 Just in case:
 
-- **Docker issues**: `docker compose restart` or `docker compose down && docker compose up -d`
-- **Bot not responding**: Check Gemini API key in .env
+- **Docker issues**: `make stop && make start` or `make clean && make start` for fresh state
+- **OpenAI bots not responding**: Check OPENAI_API_KEY in .env
+- **Anthropic bots not responding**: Check ANTHROPIC_API_KEY in .env, verify LiteLLM container running
+- **Gemini bots not responding**: Check GEMINI_API_KEY in .env
+- **GLADOS slow**: Normal — gemini-3-pro is a thinking model, takes 10-30s
 - **No traces**: Check GRAFANA_OTLP_TOKEN in .env
-- **OpenWebUI 500 error**: Check logs with `docker logs openwebui-instrumented`
+- **OpenWebUI errors**: Check logs with `docker compose logs openwebui`
 
 ---
 

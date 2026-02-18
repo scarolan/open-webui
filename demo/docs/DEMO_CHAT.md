@@ -241,16 +241,16 @@ Analyze this structure
 ## Key Demo Talking Points
 
 ### When Showing HAL Trace:
-- "See the bot name? Not just 'gemini-flash', we know it's HAL"
+- "See the bot name? Not just 'gpt-4o', we know it's HAL"
+- "Provider: OpenAI — we see exactly which vendor served this"
 - "Tool call captured: pod_bay_doors with action='status'"
 - "Token breakdown: 180 prompt, 95 completion = 275 total"
-- "Cost: roughly $0.0002 for this conversation"
 
 ### When Showing Bot Comparison:
-- "Marvin uses 3x more tokens than JARVIS - personality matters!"
-- "HAL over-uses run_diagnostics - paranoid by design"
-- "GLADOS loves deploying turrets - system prompt working as intended"
-- "Bender's creative insults are expensive - 400+ tokens per response"
+- "Marvin on Sonnet costs 41x more than JARVIS on gpt-4o-mini in practice!"
+- "24x from model pricing, the rest from personality verbosity"
+- "GLADOS on gemini-3-pro is a thinking model — slow and expensive but thorough"
+- "Three vendors, one dashboard — that's the power of vendor-neutral observability"
 
 ### When Showing Failed Trace:
 - "Zero response characters - hallucinated tool call that doesn't exist"
@@ -262,10 +262,10 @@ Analyze this structure
 ## Pre-Flight Checklist
 
 Before starting demo:
-- [ ] Docker stack running (`docker ps` shows openwebui + otel-collector)
-- [ ] Bots configured (login to http://localhost:3000, check model dropdown)
-- [ ] Test data generated (30+ traces in Grafana)
-- [ ] Grafana dashboard loaded with time range set to "Last 15 minutes"
+- [ ] Docker stack running (`docker ps` shows openwebui + litellm + otel-collector)
+- [ ] Bots configured across 3 providers (login to http://localhost:3000, check model dropdown)
+- [ ] Test data generated (`make load-gen && make load-gen-tools`)
+- [ ] Grafana dashboard loaded with cost-by-bot panel showing 24x spread
 - [ ] Browser tabs ready: OpenWebUI + Grafana side-by-side
 - [ ] Backup screenshots saved (in case demo fails)
 

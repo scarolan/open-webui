@@ -1,9 +1,9 @@
-# 🎤 Speaker Notes - Quick Reference Card
+# Speaker Notes - Quick Reference Card
 **Print this or keep on phone during talk**
 
 ---
 
-## ⏱️ TIMING CHECKPOINTS
+## TIMING CHECKPOINTS
 - 2:00 → Start live demo
 - 5:00 → End demo, back to slides
 - 7:00 → On takeaway slide
@@ -11,191 +11,202 @@
 
 ---
 
-## 🎯 THE STRUCTURE
+## THE STRUCTURE
 
 ### 1. HOOK (0:30)
 "Your AI has multiple personalities... they're all spending your money"
 - Poll: Who's deployed AI agents?
-- Poll: Who knows which is most expensive?
-- Metaphor: Parenting six robot personalities
+- Poll: Who uses MORE THAN ONE provider?
+- Poll: Who knows which agent is most expensive?
+- Headline: 24x cost spread across 3 providers
 
 ### 2. PAIN (1:00)
 Three things happen:
-1. Cloud bill is concerning
-2. Users say "HAL is slower than Bender" - you don't know why
-3. Boss asks "which bot to optimize?" - you're guessing
+1. Cloud bill split across THREE vendors — concerning
+2. Users say "GLADOS is slower than JARVIS" — thinking model vs fast model, no data
+3. Boss asks "which provider to consolidate on?" — you're guessing
 
-Traditional obs → HTTP
-AI obs → WHICH bot, what tools, why tokens
+Traditional obs → HTTP requests
+AI obs → WHICH bot, WHICH provider, what tools, why tokens, what cost
 
 ### 3. DEMO SETUP (0:30)
-Six bots:
-- HAL (paranoid spaceship AI)
-- Marvin (depressed robot)
-- Bender (alcoholic robot)
-- GLADOS (sadistic AI)
-- JARVIS (efficient assistant)
-- Cortana (tactical AI)
+Six bots, three providers, six unique models:
+- HAL → OpenAI gpt-4o ($7.50/M)
+- JARVIS → OpenAI gpt-4o-mini ($0.45/M)
+- Marvin → Anthropic Sonnet ($11.00/M) ← MOST EXPENSIVE
+- Bender → Anthropic Haiku ($3.67/M)
+- GLADOS → Google gemini-3-pro ($8.67/M) ← THINKING MODEL
+- Cortana → Google gemini-3-flash ($2.17/M)
 
-39 tools total
+39 tools total. 24x cost spread.
 
 ### 4. HAPPY PATH (1:30)
 Query: "HAL, what's the status of the pod bay doors?"
-Show: Bot name (hal), tool call (pod_bay_doors), tokens (275), cost ($0.0002), latency (1.4s)
+Show: Bot name (hal), provider (openai), base model (gpt-4o), tool call (pod_bay_doors), tokens (275), cost
 
-### 5. CHAOS (1:30)
-Bot comparison: Marvin 3x more expensive than JARVIS (personality costs!)
-Tool patterns: HAL over-diagnoses, GLADOS over-deploys
-Failed trace: 0 chars = hallucinated tool call, burned tokens
+### 5. THE MONEY SHOT (1:30)
+Cost panel: Marvin $0.074, GLADOS $0.038, JARVIS $0.0018
+- Marvin 41x more expensive than JARVIS IN PRACTICE
+- Two reasons: model pricing (24x) + personality verbosity (Marvin 1100 tokens, JARVIS 350)
+- Provider view: Anthropic most expensive, Google middle, OpenAI cheapest
+- KEY POINT: "Without vendor-neutral observability, you'd have three separate dashboards"
 
-### 6. THE MONEY SHOT (1:00)
-Four superpowers:
-1. Cost attribution by personality (3.3x difference!)
-2. Tool usage patterns (HAL's paranoia, GLADOS's sadism)
-3. System prompt validation (is personality working?)
-4. Debugging with context (not "500", actual error with bot+tool+input)
+### 6. FOUR SUPERPOWERS (1:00)
+1. Cross-vendor cost attribution (24x spread, data to act on)
+2. Thinking model economics (is gemini-3-pro worth it over flash?)
+3. Tool usage across providers (do tools work differently?)
+4. Vendor-neutral debugging (one trace, complete context, any provider)
 
 ### 7. HOW (0:45)
-OTEL + OpenInference + Grafana
-100 lines of code, 30 mins setup
-Handles OpenAI format AND OpenWebUI embedded format
+OTEL + OpenInference + LiteLLM + Grafana
+100 lines of code. `make start`. Three providers, one dashboard.
+Tail sampling: keeps only LLM spans, 90% noise filtered.
 
 ### 8. HOT TAKE (0:45)
-"Deploying multiple agents without observability = parenting in the dark"
-Don't know: which expensive, if tools correct, if prompts work, why fail
-"Terrifying in production"
-"Marvin's depression has a dollar amount now"
+"Multiple providers without unified observability = three separate blind spots"
+Don't know: 24x cost spread, thinking model tradeoffs, which provider best
+"Terrifying in production across vendors"
+"Marvin's depression costs $11/M on Sonnet — maybe Haiku's depression is good enough at $3.67"
 
 ### 9. CTA (0:30)
 QR codes: GitHub + Grafana Cloud
-"30 minutes, docker-compose up"
-"Who wants to ask about robot psychology?"
+"`make start` — 30 minutes, three providers, one dashboard"
+"Who wants to ask about robot psychology or multi-provider economics?"
 
 ---
 
-## 💪 POWER PHRASES
+## POWER PHRASES
 
-✅ "Parenting in the dark"
-✅ "Personality matters"
-✅ "Terrifying in production"
-✅ "Table stakes for multi-agent systems"
-✅ "At least you'll know exactly how much his depression costs"
-✅ "Even HAL has bad days"
+Use these:
+- "24x cost spread across three vendors"
+- "You can't optimize what you can't see across all your providers"
+- "One dashboard, three vendors, complete visibility"
+- "Is the thinking model worth 24x the cost?"
+- "Three separate blind spots"
+- "Vendor-neutral observability for a multi-vendor world"
+- "Marvin's depression has a dollar amount: $11 per million tokens"
 
-❌ "Probably should"
-❌ "It's complicated"
-❌ "Maybe you could"
-
----
-
-## 🎬 DEMO TRACES (Pre-identify!)
-
-**Trace 1**: Clean HAL query (pod bay doors, single tool call)
-**Trace 2**: Bot comparison bar chart (all 6 bots, cost variance)
-**Trace 3**: Failed trace with 0 response chars (hallucinated tool)
+Avoid:
+- "Probably should"
+- "It's complicated"
+- "Maybe you could"
 
 ---
 
-## 🔢 KEY NUMBERS
+## DEMO TRACES (Pre-identify!)
 
-- 6 bot personalities
-- 39 custom tools
-- **3.3x cost variance** (Marvin vs JARVIS)
-- $0.0002-0.001 per query
-- 13+ OpenInference attributes
-- 30 min setup
-- 100 lines code
+**Panel 1**: Cost-by-bot showing Marvin >> GLADOS >> HAL >> Bender >> Cortana >> JARVIS
+**Panel 2**: Provider breakdown (Anthropic highest, Google middle, OpenAI lowest)
+**Panel 3**: Token usage showing Marvin's verbosity (1100 tokens avg)
+**Panel 4**: Tool calls across all 6 bots
 
 ---
 
-## 🛡️ IF DEMO BREAKS
+## KEY NUMBERS
 
-Say: "Even HAL has bad days - this is why we need observability!"
+- **3** LLM providers (OpenAI, Anthropic, Google)
+- **6** bot personalities on **6** unique models
+- **39** custom tools
+- **24x** token cost spread ($0.45/M to $11.00/M)
+- **41x** actual cost spread in practice ($0.0018 to $0.074 per session)
+- **$11.00/M** most expensive (Marvin on Sonnet)
+- **$0.45/M** cheapest (JARVIS on gpt-4o-mini)
+- **100** lines of instrumentation code
+- **1** command to start: `make start`
+
+---
+
+## IF DEMO BREAKS
+
+Say: "Even HAL has bad days across all three providers - this is why we need observability!"
 Do: Switch to backup screenshots
 
 ---
 
-## 🎤 OPENING (Memorize)
+## OPENING (Memorize)
 
 "Hey folks! Quick question - how many of you have deployed AI agents or chatbots?"
 
 [Hands up]
 
-"Awesome. Now keep your hand up if you can tell me EXACTLY which of your agents is the most expensive to run."
+"Now keep your hand up if you're using MORE THAN ONE LLM provider."
+
+[Some hands stay]
+
+"Keep your hand up if you can tell me EXACTLY which agent is the most expensive to run."
 
 [Hands drop]
 
-"Yeah, thought so. Today I'm going to show you why AI observability is basically parenting six different robot personalities..."
+"Yeah, thought so. Today I'm going to show you six robot personalities spread across OpenAI, Anthropic, and Google — with a 24x cost spread — and why multi-provider observability is the only way to make sense of it."
 
 ---
 
-## 🏁 CLOSING (Memorize)
+## CLOSING (Memorize)
 
-"Here's my hot take: If you're deploying multiple AI agents or bot personalities without observability, you're basically parenting in the dark."
-
-[Pause]
-
-"You don't know which bots are expensive vs efficient, if they're using tools correctly, whether their personality prompts actually work, or why they fail."
+"Here's my hot take: If you're using multiple LLM providers without unified observability, you're managing three separate blind spots."
 
 [Pause]
 
-"In production, that's terrifying. Especially when you scale to hundreds of conversations per day."
+"You don't know that your thinking model costs 24x your fast model. You don't know if that premium is worth it. You don't know which provider is fastest or cheapest."
 
 [Pause]
 
-"The good news? OpenTelemetry and OpenInference make it easy. The fun part? You get to watch your robot personalities in action and optimize the expensive troublemakers."
+"In production, that's terrifying. One dashboard. Three vendors. Complete visibility. That's what OpenTelemetry gives you."
 
-[Smile]
+[Pause]
 
-"Marvin might be depressed, but at least you'll know EXACTLY how much his depression costs you per query."
+"Marvin might be depressed, but at least you'll know his depression costs exactly $11 per million tokens on Sonnet — and you can decide if Haiku's depression is good enough at $3.67."
 
 [Point to QR codes]
 
-"Alright, I've got 2 minutes for questions. Who wants to ask about robot psychology?"
+"Alright, questions. Who wants to talk about robot psychology or multi-provider economics?"
 
 ---
 
-## ❓ LIKELY QUESTIONS
+## LIKELY QUESTIONS
 
 **Q: Non-OpenWebUI frameworks?**
 A: Framework-agnostic! LangChain, LlamaIndex, CrewAI, AutoGen. Same pattern.
 
-**Q: Other providers (OpenAI/Anthropic)?**
-A: Yes! ALL providers. Token metadata universal. Using Gemini for free tier demo.
+**Q: How does LiteLLM fit in?**
+A: Lightweight proxy for Anthropic. OpenAI and Gemini connect directly. One container, zero config.
+
+**Q: Thinking models different?**
+A: Yes! Longer latency, more tokens, higher cost. Traces show the tradeoff — is the quality worth 24x?
 
 **Q: Sensitive data / PII?**
-A: Attribute filtering → DROP prompts/responses, KEEP metadata. Docs in repo.
+A: Attribute filtering → DROP prompts/responses, KEEP metadata (tokens, provider, cost). Docs in repo.
 
 **Q: Grafana Cloud cost?**
-A: Free tier = 50GB/month. Cost of obs << cost of inefficient bots.
+A: Free tier = 50GB/month. Cost of obs << cost of running $11/M model when $0.45/M would work.
 
 **Q: Streaming?**
-A: Yes! Captures when stream completes. Full tokens + latency.
+A: Yes! Accumulates tool calls across SSE chunks. Full tokens + latency when stream completes.
 
-**Q: Tools only in UI?**
-A: OpenWebUI attaches tools during UI flow. For demos use UI (fun!) or explicit API calls.
-
----
-
-## 🎯 BODY LANGUAGE
-
-✅ Stand if possible
-✅ Reference bots by name (more engaging)
-✅ Point at specific trace attributes
-✅ Make eye contact during polls
-✅ Smile when showing bot personalities
-✅ High energy throughout
-✅ Optional: Do the voices (HAL, Marvin, Bender) if brave
+**Q: Actual cost difference?**
+A: Marvin $0.074/session, JARVIS $0.0018. That's 41x — model pricing PLUS personality verbosity.
 
 ---
 
-## 🚨 WHAT NOT TO FORGET
+## BODY LANGUAGE
 
-- [ ] Docker running
-- [ ] Bots configured (HAL, Marvin, Bender, GLADOS, JARVIS, Cortana)
-- [ ] Test data generated (30+ traces)
-- [ ] 3 traces pre-identified
-- [ ] Grafana loaded, time range set
+- Stand if possible
+- Name the PROVIDER when you name the bot: "Marvin on Anthropic Sonnet"
+- Point at specific cost numbers on the dashboard
+- Make eye contact during polls
+- Smile when showing bot personalities
+- High energy throughout
+- The 24x number is your anchor — keep coming back to it
+
+---
+
+## WHAT NOT TO FORGET
+
+- [ ] Docker running (3 containers: openwebui, litellm, otel-collector)
+- [ ] Bots configured (6 bots, 3 providers)
+- [ ] Test data generated (`make load-gen && make load-gen-tools`)
+- [ ] Dashboard loaded with cost data
+- [ ] Grafana time range set
 - [ ] OpenWebUI logged in, HAL selected
 - [ ] Backup screenshots ready
 - [ ] Phone on silent
@@ -204,51 +215,49 @@ A: OpenWebUI attaches tools during UI flow. For demos use UI (fun!) or explicit 
 
 ---
 
-## 💡 THE ONE THING
+## THE ONE THING
 
 **If you forget everything else, remember this:**
 
-The bots are the heroes.
-Your job: show why observability matters for multi-agent systems.
-How: real personalities, real tools, real cost differences.
+24x cost spread. Three providers. One dashboard. You can't optimize what you can't see.
 
-The robots are inherently entertaining - USE IT!
+The robots are the hook — multi-provider economics is the insight.
 
-**You've got this! 🤖🔥**
+**You've got this!**
 
 ---
 
-## 🎨 DEMO TIPS
-
-### When Showing OpenWebUI:
-- Select bot from dropdown, say the name out loud
-- Type slowly so audience can read
-- Point out the superscript tool call indicator
-- Wait for response, then immediately flip to Grafana
-
-### When Showing Grafana:
-- Use large font size (zoom in browser if needed)
-- Click on a single span to expand details
-- Highlight specific attributes (bot name, tokens, tool calls)
-- Use mouse to point at numbers you're discussing
-
-### When Showing Dashboards:
-- Full screen the visualization
-- Explain axes ("This is bot name, this is total traces")
-- Call out the variance ("See? Marvin is 3x more expensive!")
-- Let the data tell the story
-
----
-
-## 🎭 PERSONALITY HOOKS
+## PERSONALITY HOOKS
 
 Use these to keep energy high:
 
-- **HAL**: "HAL's paranoid - he over-diagnoses everything"
-- **Marvin**: "Marvin's depression is EXPENSIVE, token-wise"
-- **Bender**: "Bender's creative insults cost more than you'd think"
-- **GLADOS**: "GLADOS loves deploying turrets - system prompt working as intended!"
-- **JARVIS**: "JARVIS is efficient - Tony Stark doesn't waste money"
-- **Cortana**: "Cortana's all tactical analysis, barely needs tools"
+- **HAL** (OpenAI gpt-4o): "HAL's on the premium OpenAI model — paranoid AND expensive"
+- **JARVIS** (OpenAI gpt-4o-mini): "JARVIS is efficient — Tony Stark runs on the budget model and still gets the job done"
+- **Marvin** (Anthropic Sonnet): "Marvin's depression is EXPENSIVE — $11 per million tokens on the most premium model, and he's VERBOSE about it"
+- **Bender** (Anthropic Haiku): "Bender's on the cheap Anthropic model — even his insults are budget-friendly"
+- **GLADOS** (Google gemini-3-pro): "GLADOS is on a thinking model — she DELIBERATES before deploying turrets. Slow, expensive, thorough."
+- **Cortana** (Google gemini-3-flash): "Cortana's tactical — fast model, fast responses, low cost. Military efficiency."
 
-Reference them by personality trait = more memorable than "agent 3 uses more tokens"
+Reference by personality + provider + model = maximum impact.
+
+---
+
+## DEMO TIPS
+
+### When Showing OpenWebUI:
+- Select bot from dropdown, say the name AND provider out loud
+- Type slowly so audience can read
+- Point out the tool call indicator
+- Wait for response, then immediately flip to Grafana
+
+### When Showing Grafana:
+- Full screen the cost panel — it's the star
+- Point at Marvin's bar vs JARVIS's bar — the visual gap is dramatic
+- Call out specific dollar amounts: "$0.074 vs $0.0018"
+- Show the provider breakdown — three colors, three vendors, one chart
+
+### When Showing Dashboards:
+- Lead with cost panel (the money shot)
+- Then provider breakdown (the why)
+- Then token usage (the detail)
+- Let the 24x gap tell the story
