@@ -13,9 +13,9 @@
 | HAL 9000 | OpenAI | `gpt-4o` | $2.50 | $10.00 | **$7.50** |
 | JARVIS | OpenAI | `gpt-4o-mini` | $0.15 | $0.60 | **$0.45** |
 | Marvin | Anthropic | `claude-sonnet-4-5` | $3.00 | $15.00 | **$11.00** |
-| Bender | Anthropic | `claude-haiku-4-5` | $0.80 | $4.00 | **$2.93** |
-| GLADOS | Google | `gemini-2.5-flash` | $0.15 | $0.60 | **$0.45** |
-| Cortana | Google | `gemini-3-flash` | $0.15 | $0.60 | **$0.45** |
+| Bender | Anthropic | `claude-haiku-4-5` | $1.00 | $5.00 | **$3.67** |
+| GLADOS | Google | `gemini-3-pro` | $2.00 | $12.00 | **$8.67** |
+| Cortana | Google | `gemini-3-flash` | $0.50 | $3.00 | **$2.17** |
 
 **Blended rate** assumes a 1:2 input:output token ratio (typical for chat):
 
@@ -29,9 +29,9 @@ blended = (input_rate + output_rate * 2) / 3
 
 ```
 TIER 1 — Premium          TIER 2 — Mid             TIER 3 — Economy
-$11.00/M  Marvin (Sonnet)  $2.93/M  Bender (Haiku)  $0.45/M  JARVIS (gpt-4o-mini)
-$7.50/M   HAL (gpt-4o)                               $0.45/M  GLADOS (gemini-2.5-flash)
-                                                      $0.45/M  Cortana (gemini-3-flash)
+$11.00/M  Marvin (Sonnet)  $3.67/M  Bender (Haiku)  $0.45/M  JARVIS (gpt-4o-mini)
+$8.67/M   GLADOS (gemini-3-pro)  $2.17/M  Cortana (gemini-3-flash)
+$7.50/M   HAL (gpt-4o)
 ```
 
 Marvin on Sonnet costs **24x more** per token than JARVIS on gpt-4o-mini.
@@ -76,9 +76,9 @@ F: { resource.service.name = "openwebui" && span.llm.model_name = "cortana" } | 
 G: $A * 7.50  / 1000000    # HAL     (gpt-4o)           — $7.50/M blended
 H: $B * 0.45  / 1000000    # JARVIS  (gpt-4o-mini)      — $0.45/M blended
 I: $C * 11.00 / 1000000    # Marvin  (claude-sonnet-4-5) — $11.00/M blended
-J: $D * 2.93  / 1000000    # Bender  (claude-haiku-4-5)  — $2.93/M blended
-K: $E * 0.45  / 1000000    # GLADOS  (gemini-2.5-flash)  — $0.45/M blended
-L: $F * 0.45  / 1000000    # Cortana (gemini-3-flash)    — $0.45/M blended
+J: $D * 3.67  / 1000000    # Bender  (claude-haiku-4-5)  — $3.67/M blended
+K: $E * 8.67  / 1000000    # GLADOS  (gemini-3-pro)       — $8.67/M blended
+L: $F * 2.17  / 1000000    # Cortana (gemini-3-flash)    — $2.17/M blended
 ```
 
 **Total estimated cost**:
@@ -161,7 +161,7 @@ This pattern applies to any production multi-model setup:
 ## Summary
 
 - **3 providers**: OpenAI, Anthropic, Google Gemini
-- **6 unique models**: gpt-4o, gpt-4o-mini, claude-sonnet-4-5, claude-haiku-4-5, gemini-2.5-flash, gemini-3-flash
+- **6 unique models**: gpt-4o, gpt-4o-mini, claude-sonnet-4-5, claude-haiku-4-5, gemini-3-pro, gemini-3-flash
 - **24x cost spread**: $0.45/M (economy) to $11.00/M (premium)
 - **Two cost layers**: model pricing + personality verbosity
 - **One observability platform**: OpenTelemetry → Grafana Cloud Tempo
