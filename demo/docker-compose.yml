@@ -3,7 +3,7 @@ name: grafana-cloud-openwebui-demo
 services:
   # LiteLLM Proxy - translates OpenAI-format requests to Anthropic's native API
   litellm:
-    image: ghcr.io/berriai/litellm:main-stable
+    image: ghcr.io/berriai/litellm:main-v1.81.13
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
@@ -12,6 +12,12 @@ services:
     networks:
       - demo
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # Instrumented OpenWebUI - builds from local fork with LLM observability
   openwebui:
@@ -65,7 +71,7 @@ services:
       otel-collector:
         condition: service_started
       litellm:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
