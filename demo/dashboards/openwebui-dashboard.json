@@ -2,9 +2,9 @@
   "apiVersion": "dashboard.grafana.app/v2beta1",
   "kind": "DashboardWithAccessInfo",
   "metadata": {
-    "name": "openwebui-llm-obs",
-    "generation": 33,
-    "creationTimestamp": "2026-01-12T22:57:14Z",
+    "name": "sckzftl",
+    "generation": 8,
+    "creationTimestamp": "2026-02-18T19:35:50Z",
     "labels": {},
     "annotations": {}
   },
@@ -186,6 +186,7 @@
                         "query": "{ span.llm.tool_calls.1.name != nil && span.llm.model_name =~ \"$bot_hardcoded\" } | count_over_time() by(span.llm.tool_calls.1.name)",
                         "queryType": "traceql",
                         "range": true,
+                        "serviceMapUseNativeHistograms": false,
                         "tableType": "traces"
                       },
                       "version": "v0"
@@ -206,6 +207,7 @@
                         "query": "{ span.llm.tool_calls.2.name != nil && span.llm.model_name =~ \"$bot_hardcoded\" } | count_over_time() by(span.llm.tool_calls.2.name)",
                         "queryType": "traceql",
                         "range": true,
+                        "serviceMapUseNativeHistograms": false,
                         "tableType": "traces"
                       },
                       "version": "v0"
@@ -226,6 +228,7 @@
                         "query": "{ span.llm.tool_calls.3.name != nil && span.llm.model_name =~ \"$bot_hardcoded\" } | count_over_time() by(span.llm.tool_calls.3.name)",
                         "queryType": "traceql",
                         "range": true,
+                        "serviceMapUseNativeHistograms": false,
                         "tableType": "traces"
                       },
                       "version": "v0"
@@ -246,6 +249,7 @@
                         "query": "{ span.llm.tool_calls.4.name != nil && span.llm.model_name =~ \"$bot_hardcoded\" } | count_over_time() by(span.llm.tool_calls.4.name)",
                         "queryType": "traceql",
                         "range": true,
+                        "serviceMapUseNativeHistograms": false,
                         "tableType": "traces"
                       },
                       "version": "v0"
@@ -1636,22 +1640,6 @@
                       "replaceFields": false
                     }
                   }
-                },
-                {
-                  "kind": "organize",
-                  "spec": {
-                    "id": "organize",
-                    "options": {
-                      "excludeByName": {
-                        "bender": true,
-                        "cortana": true,
-                        "glados": true,
-                        "hal": true,
-                        "jarvis": true,
-                        "marvin": true
-                      }
-                    }
-                  }
                 }
               ]
             }
@@ -1847,6 +1835,22 @@
                         }
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "^(hal|jarvis|marvin|bender|glados|cortana)$"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
                   }
                 ]
               },
@@ -1858,7 +1862,9 @@
                   ],
                   "displayMode": "table",
                   "placement": "right",
-                  "showLegend": true
+                  "showLegend": true,
+                  "sortBy": "Total",
+                  "sortDesc": true
                 },
                 "tooltip": {
                   "hideZeros": false,
@@ -2334,7 +2340,7 @@
         "1d"
       ],
       "fiscalYearStartMonth": 0,
-      "from": "now-15m",
+      "from": "now-30m",
       "hideTimepicker": false,
       "timezone": "browser",
       "to": "now"
