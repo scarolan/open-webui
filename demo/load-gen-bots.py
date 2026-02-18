@@ -22,8 +22,8 @@ from typing import Tuple, List
 
 # Configuration
 OPENWEBUI_URL = "http://localhost:3000"
-EMAIL = os.getenv("OPENWEBUI_EMAIL", "demo@example.com")
-PASSWORD = os.getenv("OPENWEBUI_PASSWORD", "changeme")
+EMAIL = os.getenv("OPENWEBUI_EMAIL", "team-se@grafana.com")
+PASSWORD = os.getenv("OPENWEBUI_PASSWORD", "open-sesame")
 
 # Bot-specific prompts designed to trigger tool calls and varied token usage
 BOT_PROMPTS: List[Tuple[str, str]] = [

@@ -8,12 +8,13 @@ import requests
 import json
 import time
 import sys
+import os
 from typing import List, Dict, Tuple
 
 # Configuration
 OPENWEBUI_URL = "http://localhost:3000"
-EMAIL = "sean.carolan@grafana.com"
-PASSWORD = "open-sesame"
+EMAIL = os.getenv("OPENWEBUI_EMAIL", "team-se@grafana.com")
+PASSWORD = os.getenv("OPENWEBUI_PASSWORD", "open-sesame")
 
 # Tool/function definitions (OpenAI format)
 TOOLS = [

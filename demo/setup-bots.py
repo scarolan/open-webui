@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 OpenWebUI Complete Setup Script
-Automatically configures Gemini connection and imports all 6 bot personalities
+Automatically configures OpenAI, Anthropic (via LiteLLM), and Gemini connections
+and imports all 6 bot personalities
 
 Usage:
     python3 setup-bots.py
@@ -9,7 +10,7 @@ Usage:
 Requirements:
     - OpenWebUI running at http://localhost:3000
     - User account already created (sign up first in the UI)
-    - .env file with GEMINI_API_KEY configured
+    - .env file with OPENAI_API_KEY, ANTHROPIC_API_KEY, and GEMINI_API_KEY configured
 """
 
 import requests
@@ -21,13 +22,13 @@ from pathlib import Path
 # Configuration
 OPENWEBUI_URL = "http://localhost:3000"
 
-# Load Gemini API key from environment or .env file
-def load_gemini_key():
-    """Load Gemini API key from .env file or environment"""
+# Load API keys from environment or .env file
+def load_env_key(var_name):
+    """Load an API key from environment variable or .env file"""
     env_file = Path(__file__).parent / ".env"
 
     # Try environment variable first
-    key = os.getenv("GEMINI_API_KEY")
+    key = os.getenv(var_name)
     if key:
         return key
 
@@ -35,13 +36,15 @@ def load_gemini_key():
     if env_file.exists():
         with open(env_file) as f:
             for line in f:
-                if line.startswith("GEMINI_API_KEY="):
+                if line.startswith(f"{var_name}="):
                     return line.split("=", 1)[1].strip().strip('"').strip("'")
 
     # Prompt user
-    return input("Enter your Gemini API key: ").strip()
+    return input(f"Enter your {var_name}: ").strip()
 
-GEMINI_API_KEY = load_gemini_key()
+GEMINI_API_KEY = load_env_key("GEMINI_API_KEY")
+ANTHROPIC_API_KEY = load_env_key("ANTHROPIC_API_KEY")
+OPENAI_API_KEY = load_env_key("OPENAI_API_KEY")
 
 # Get email/password from environment or prompt
 EMAIL = os.getenv("OPENWEBUI_EMAIL")
@@ -78,16 +81,23 @@ def authenticate():
         sys.exit(1)
 
 
-def configure_gemini_connection(auth_header):
-    """Configure Gemini API connection in admin settings"""
-    print("🔌 Configuring Gemini connection...")
+def configure_connections(auth_header):
+    """Configure OpenAI, Anthropic (via LiteLLM), and Gemini API connections"""
+    print("🔌 Configuring API connections...")
+    print("  [0] OpenAI  → https://api.openai.com/v1")
+    print("  [1] LiteLLM → http://litellm:4000/v1 (Anthropic proxy)")
+    print("  [2] Gemini  → https://generativelanguage.googleapis.com/v1beta/openai")
 
     config_payload = {
         "ENABLE_OPENAI_API": True,
         "OPENAI_API_BASE_URLS": [
-            "https://generativelanguage.googleapis.com/v1beta/openai"
+            "https://api.openai.com/v1",                                 # index 0: OpenAI
+            "http://litellm:4000/v1",                                    # index 1: LiteLLM (Anthropic)
+            "https://generativelanguage.googleapis.com/v1beta/openai"    # index 2: Gemini
         ],
         "OPENAI_API_KEYS": [
+            OPENAI_API_KEY,
+            "sk-unused",  # LiteLLM handles its own auth via ANTHROPIC_API_KEY env var
             GEMINI_API_KEY
         ],
         "OPENAI_API_CONFIGS": {
@@ -95,7 +105,23 @@ def configure_gemini_connection(auth_header):
                 "enable": True,
                 "tags": [],
                 "prefix_id": "",
-                "model_ids": ["models/gemini-3-flash-preview", "models/gemini-3-pro-preview"],
+                "model_ids": ["gpt-4o", "gpt-4o-mini"],
+                "connection_type": "external",
+                "auth_type": "bearer"
+            },
+            "1": {
+                "enable": True,
+                "tags": [],
+                "prefix_id": "",
+                "model_ids": ["claude-sonnet-4-5", "claude-haiku-4-5"],
+                "connection_type": "external",
+                "auth_type": "bearer"
+            },
+            "2": {
+                "enable": True,
+                "tags": [],
+                "prefix_id": "",
+                "model_ids": ["models/gemini-3-pro-preview", "models/gemini-3-flash-preview"],
                 "connection_type": "external",
                 "auth_type": "bearer"
             }
@@ -114,9 +140,9 @@ def configure_gemini_connection(auth_header):
         )
 
         if response.status_code in [200, 201]:
-            print("  ✅ Gemini connection configured")
-            print("  📡 API endpoint: https://generativelanguage.googleapis.com/v1beta/openai")
-            print("  🔑 API key configured")
+            print("  ✅ OpenAI connection configured (index 0)")
+            print("  ✅ LiteLLM/Anthropic connection configured (index 1)")
+            print("  ✅ Gemini connection configured (index 2)")
             return True
         else:
             print(f"  ⚠️  Configuration failed (status {response.status_code})")
@@ -124,7 +150,7 @@ def configure_gemini_connection(auth_header):
             return False
 
     except Exception as e:
-        print(f"  ❌ Failed to configure connection: {e}")
+        print(f"  ❌ Failed to configure connections: {e}")
         return False
 
 
@@ -213,7 +239,7 @@ def main():
     print("="*70)
     print(f"Target: {OPENWEBUI_URL}")
     print("Tasks:")
-    print("  1. Configure Gemini API connection")
+    print("  1. Configure OpenAI + Anthropic (via LiteLLM) + Gemini API connections")
     print("  2. Import 6 bot personalities (HAL, Marvin, Bender, GLADOS, JARVIS, Cortana)")
     print("  3. Import 6 custom tool sets (39 total functions)")
     print("="*70 + "\n")
@@ -242,11 +268,11 @@ def main():
     # Authenticate
     auth_header = authenticate()
 
-    # Step 1: Configure Gemini connection
+    # Step 1: Configure API connections (Gemini + LiteLLM/Anthropic)
     print("=" * 70)
     print("STEP 1: Admin Configuration")
     print("=" * 70 + "\n")
-    configure_gemini_connection(auth_header)
+    configure_connections(auth_header)
     print()
 
     # Step 2: Create tools
@@ -278,7 +304,9 @@ def main():
     print("✅ Setup Complete!")
     print("="*70)
     print("\n📋 What was configured:")
-    print("  ✅ Gemini API connection (gemini-3-flash-preview)")
+    print("  ✅ OpenAI connection (HAL → gpt-4o, JARVIS → gpt-4o-mini)")
+    print("  ✅ LiteLLM/Anthropic connection (Marvin → Sonnet 4.5, Bender → Haiku 4.5)")
+    print("  ✅ Gemini connection (GLADOS → gemini-3-pro, Cortana → gemini-3-flash)")
     print(f"  ✅ {tools_created} tool sets with 39 custom functions")
     print(f"  ✅ {bots_created} bot personalities with unique system prompts")
     print("\n📋 Next steps:")

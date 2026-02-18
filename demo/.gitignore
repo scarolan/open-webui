@@ -6,3 +6,17 @@ openwebui-data/
 
 # Logs
 *.log
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# k6 results
+k6-results/

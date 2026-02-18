@@ -1,6 +1,10 @@
 # OpenTelemetry Collector Configuration
 # Receives traces from instrumented OpenWebUI and forwards to Grafana Cloud Tempo
 
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 receivers:
   # OTLP receiver for traces from OpenWebUI
   otlp:
@@ -80,6 +84,7 @@ exporters:
     sampling_thereafter: 200
 
 service:
+  extensions: [health_check]
   pipelines:
     traces:
       receivers: [otlp]
