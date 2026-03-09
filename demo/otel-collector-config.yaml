@@ -42,7 +42,7 @@ processors:
 
   # Filter traces - ONLY keep traces with LLM spans or errors
   tail_sampling:
-    decision_wait: 10s
+    decision_wait: 300s
     num_traces: 100000
     expected_new_traces_per_sec: 10
     policies:

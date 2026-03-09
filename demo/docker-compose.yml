@@ -3,7 +3,7 @@ name: grafana-cloud-openwebui-demo
 services:
   # LiteLLM Proxy - translates OpenAI-format requests to Anthropic's native API
   litellm:
-    image: ghcr.io/berriai/litellm:main-v1.81.13
+    image: ghcr.io/berriai/litellm:main-stable
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
@@ -13,7 +13,7 @@ services:
       - demo
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health')"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -37,6 +37,7 @@ services:
       # OpenWebUI Configuration
       - WEBUI_URL=http://localhost:3000
       - ENABLE_OPENAI_API=false
+      - TASK_MODEL_EXTERNAL=models/gemini-3-flash-preview
 
       # OpenTelemetry Tracing Configuration
       - ENABLE_OTEL=true

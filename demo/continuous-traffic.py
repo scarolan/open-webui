@@ -81,10 +81,11 @@ async def send_query(session: aiohttp.ClientSession, bot: str, query: str, api_k
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "Accept-Encoding": "identity",
     }
 
     try:
-        async with session.post(API_ENDPOINT, json=payload, headers=headers, timeout=30) as resp:
+        async with session.post(API_ENDPOINT, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 return {
