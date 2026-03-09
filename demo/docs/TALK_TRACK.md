@@ -65,7 +65,7 @@ Log in, pick HAL from the dropdown, and you're ready.
 
 **[Select GLADOS, type: "GLADOS, how's the neurotoxin coming along?"]**
 
-> "GLADOS is on Google's gemini-3-pro, which is what they call a 'thinking model.' It actually reasons through the problem before responding. Watch the response time..."
+> "GLADOS is on Google's gemini-pro-latest, which is what they call a 'thinking model.' It actually reasons through the problem before responding. Watch the response time..."
 
 **[Wait... and wait... GLADOS eventually responds with a deliciously evil monologue]**
 
@@ -135,7 +135,7 @@ Walk through the panels:
 
 - **"How much does the monitoring cost?"** — Grafana Cloud has a free tier. And the cost of monitoring is nothing compared to accidentally running your chatbot on an $11/million-token model when a $0.45 model would do.
 
-- **"What's a thinking model?"** — Models like gemini-3-pro and Claude Sonnet do internal reasoning before responding. Better quality sometimes, but much slower and more expensive. The traces let you see whether the quality difference is worth the cost.
+- **"What's a thinking model?"** — Models like gemini-pro-latest and Claude Sonnet do internal reasoning before responding. Better quality sometimes, but much slower and more expensive. The traces let you see whether the quality difference is worth the cost.
 
 ---
 
@@ -149,8 +149,8 @@ Walk through the panels:
 | JARVIS | OpenAI | gpt-4o-mini | $0.45/M | Efficient, concise |
 | Marvin | Anthropic | claude-sonnet-4-5 | $11.00/M | Depressed, verbose, EXPENSIVE |
 | Bender | Anthropic | claude-haiku-4-5 | $3.67/M | Rude but cheap |
-| GLADOS | Google | gemini-3-pro | $8.67/M | Thinking model, SLOW |
-| Cortana | Google | gemini-3-flash | $2.17/M | Fast, tactical |
+| GLADOS | Google | gemini-pro-latest | $8.67/M | Thinking model, SLOW |
+| Cortana | Google | gemini-flash-latest | $2.17/M | Fast, tactical |
 
 ### Key Numbers
 - **24x** cost spread between cheapest and most expensive bot

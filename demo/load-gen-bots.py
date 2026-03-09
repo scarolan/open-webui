@@ -10,7 +10,7 @@ IMPORTANT LIMITATIONS:
 - This script is useful for generating traces with bot names and varied responses
 - For testing tool call instrumentation, use the UI or load-gen-openai-tools-TEST.py
 
-NOTE: Always use gemini-3-flash-preview model (NOT older models like gemini-2.0)
+NOTE: Always use gemini-flash-latest model alias (auto-resolves to current version)
 """
 
 import requests

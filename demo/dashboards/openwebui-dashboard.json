@@ -1644,7 +1644,7 @@
               ]
             }
           },
-          "description": "Per-model cost breakdown: HAL (gpt-4o $7.50/M), JARVIS (gpt-4o-mini $0.45/M), Marvin (sonnet-4-5 $11/M), Bender (haiku-4-5 $2.93/M), GLaDOS (gemini-3-pro $7.08/M), Cortana (gemini-3-flash $0.45/M)",
+          "description": "Per-model cost breakdown: HAL (gpt-4o $7.50/M), JARVIS (gpt-4o-mini $0.45/M), Marvin (sonnet-4-5 $11/M), Bender (haiku-4-5 $2.93/M), GLaDOS (gemini-pro-latest $7.08/M), Cortana (gemini-flash-latest $0.45/M)",
           "id": 30,
           "links": [],
           "title": "Estimated cost by bot",
@@ -1806,7 +1806,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "GLaDOS (gemini-3-pro)"
+                        "value": "GLaDOS (gemini-pro-latest)"
                       },
                       {
                         "id": "color",
@@ -1825,7 +1825,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Cortana (gemini-3-flash)"
+                        "value": "Cortana (gemini-flash-latest)"
                       },
                       {
                         "id": "color",

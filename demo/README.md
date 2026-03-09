@@ -67,8 +67,8 @@ Copy `.env.example` to `.env` and configure:
 | **JARVIS** | OpenAI | `gpt-4o-mini` | Tony Stark's AI | `suit_diagnostics`, `threat_assessment` |
 | **Marvin** | Anthropic | `claude-sonnet-4-5` | Depressed robot | `brain_utilization`, `probability_of_doom` |
 | **Bender** | Anthropic | `claude-haiku-4-5` | Alcoholic robot | `insult_generator`, `brew_beer` |
-| **GLADOS** | Google | `gemini-3-pro` | Sadistic test AI | `neurotoxin_status`, `deploy_turrets` |
-| **Cortana** | Google | `gemini-3-flash` | Halo tactical AI | `scan_covenant`, `spartan_vitals` |
+| **GLADOS** | Google | `gemini-pro-latest` | Sadistic test AI | `neurotoxin_status`, `deploy_turrets` |
+| **Cortana** | Google | `gemini-flash-latest` | Halo tactical AI | `scan_covenant`, `spartan_vitals` |
 
 ## Architecture
 
@@ -77,7 +77,7 @@ User Browser (localhost:3000)
     → OpenWebUI (instrumented, LLMSpanManager)
         → OpenAI API (HAL → gpt-4o, JARVIS → gpt-4o-mini)
         → LiteLLM Proxy → Anthropic API (Marvin → Sonnet, Bender → Haiku)
-        → Gemini API (GLADOS → gemini-3-pro, Cortana → gemini-3-flash)
+        → Gemini API (GLADOS → gemini-pro-latest, Cortana → gemini-flash-latest)
         → OTEL Collector (tail sampling, keeps only LLM spans)
             → Grafana Cloud Tempo
 ```

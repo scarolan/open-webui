@@ -82,7 +82,7 @@ def mock_llm_response():
         "id": "chatcmpl-test123",
         "object": "chat.completion",
         "created": 1234567890,
-        "model": "gemini-3-flash-preview",
+        "model": "gemini-flash-latest",
         "choices": [
             {
                 "index": 0,
@@ -108,7 +108,7 @@ def mock_llm_response_with_tools():
         "id": "chatcmpl-test456",
         "object": "chat.completion",
         "created": 1234567890,
-        "model": "gemini-3-flash-preview",
+        "model": "gemini-flash-latest",
         "choices": [
             {
                 "index": 0,

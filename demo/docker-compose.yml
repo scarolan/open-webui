@@ -31,13 +31,13 @@ services:
     environment:
       # Gemini API Configuration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - DEFAULT_MODEL=gemini-3-flash-preview
+      - DEFAULT_MODEL=gemini-flash-latest
       - WEBUI_NAME=AI Bot Personalities - LLM Observability Demo
 
       # OpenWebUI Configuration
       - WEBUI_URL=http://localhost:3000
       - ENABLE_OPENAI_API=false
-      - TASK_MODEL_EXTERNAL=models/gemini-3-flash-preview
+      - TASK_MODEL_EXTERNAL=models/gemini-flash-latest
 
       # OpenTelemetry Tracing Configuration
       - ENABLE_OTEL=true

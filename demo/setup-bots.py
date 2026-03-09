@@ -121,7 +121,7 @@ def configure_connections(auth_header):
                 "enable": True,
                 "tags": [],
                 "prefix_id": "",
-                "model_ids": ["models/gemini-3-pro-preview", "models/gemini-3-flash-preview"],
+                "model_ids": ["models/gemini-pro-latest", "models/gemini-flash-latest"],
                 "connection_type": "external",
                 "auth_type": "bearer"
             }
@@ -306,7 +306,7 @@ def main():
     print("\n📋 What was configured:")
     print("  ✅ OpenAI connection (HAL → gpt-4o, JARVIS → gpt-4o-mini)")
     print("  ✅ LiteLLM/Anthropic connection (Marvin → Sonnet 4.5, Bender → Haiku 4.5)")
-    print("  ✅ Gemini connection (GLADOS → gemini-3-pro, Cortana → gemini-3-flash)")
+    print("  ✅ Gemini connection (GLADOS → gemini-pro-latest, Cortana → gemini-flash-latest)")
     print(f"  ✅ {tools_created} tool sets with 39 custom functions")
     print(f"  ✅ {bots_created} bot personalities with unique system prompts")
     print("\n📋 Next steps:")

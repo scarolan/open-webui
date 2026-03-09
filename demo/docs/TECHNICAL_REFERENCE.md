@@ -11,7 +11,7 @@ User Browser (localhost:3000)
     -> OpenWebUI (instrumented with OpenTelemetry)
         -> OpenAI API (HAL -> gpt-4o, JARVIS -> gpt-4o-mini)
         -> LiteLLM Proxy -> Anthropic API (Marvin -> Sonnet 4.5, Bender -> Haiku 4.5)
-        -> Gemini API (GLADOS -> gemini-3-pro, Cortana -> gemini-3-flash)
+        -> Gemini API (GLADOS -> gemini-pro-latest, Cortana -> gemini-flash-latest)
         -> OTEL Collector (tail sampling, keeps only LLM spans)
             -> Grafana Cloud Tempo
 ```
@@ -112,8 +112,8 @@ The dashboard calculates estimated cost per bot using blended $/M token rates (1
 | JARVIS | OpenAI | gpt-4o-mini | $0.45 |
 | Marvin | Anthropic | claude-sonnet-4-5 | $11.00 |
 | Bender | Anthropic | claude-haiku-4-5 | $3.67 |
-| GLADOS | Google | gemini-3-pro | $8.67 |
-| Cortana | Google | gemini-3-flash | $2.17 |
+| GLADOS | Google | gemini-pro-latest | $8.67 |
+| Cortana | Google | gemini-flash-latest | $2.17 |
 
 Cost variance comes from two layers:
 1. **Model pricing** — Sonnet costs 24x more per token than gpt-4o-mini

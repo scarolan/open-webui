@@ -26,7 +26,7 @@ class TestEndToEndTracing:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gemini-3-flash-preview",
+                "model": "gemini-flash-latest",
                 "messages": [
                     {"role": "user", "content": "What is 2+2?"}
                 ],
@@ -106,7 +106,7 @@ class TestEndToEndTracing:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gemini-3-flash-preview",
+                "model": "gemini-flash-latest",
                 "messages": [
                     {"role": "user", "content": "What's the weather in San Francisco?"}
                 ],
@@ -138,7 +138,7 @@ class TestEndToEndTracing:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gemini-3-flash-preview",
+                "model": "gemini-flash-latest",
                 "messages": [
                     {"role": "user", "content": "Count to 5"}
                 ],
@@ -300,7 +300,7 @@ class TestErrorHandling:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gemini-3-flash-preview",
+                "model": "gemini-flash-latest",
                 # Missing required 'messages' field
                 "stream": False
             },
