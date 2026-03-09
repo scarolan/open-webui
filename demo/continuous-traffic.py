@@ -136,27 +136,41 @@ async def generate_traffic(duration_minutes: int = 30, interval_seconds: int = 1
     print(f"⏰ Will stop at: {end_time.strftime('%H:%M:%S')}")
     print("-" * 60)
 
+    async def fire_and_log(session, bot, query):
+        """Send a request and log the result without blocking the main loop."""
+        nonlocal query_count, success_count
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] 🤖 {bot.upper():7} → {query[:50]}...", flush=True)
+
+        result = await send_query(session, bot, query, api_key)
+        query_count += 1
+
+        done_timestamp = datetime.now().strftime("%H:%M:%S")
+        if result["success"]:
+            success_count += 1
+            print(f"[{done_timestamp}] ✅ {bot.upper():7} done", flush=True)
+        else:
+            print(f"[{done_timestamp}] ❌ {bot.upper():7} {result['error']}", flush=True)
+
     async with aiohttp.ClientSession() as session:
+        pending = set()
         while datetime.now() < end_time:
             # Pick a random bot
             bot = random.choice(BOTS)
             query = random.choice(QUERIES[bot])
 
-            # Send query
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            print(f"[{timestamp}] 🤖 {bot.upper():7} → {query[:50]}...", end="", flush=True)
-
-            result = await send_query(session, bot, query, api_key)
-            query_count += 1
-
-            if result["success"]:
-                success_count += 1
-                print(f" ✅")
-            else:
-                print(f" ❌ {result['error']}")
+            # Fire request concurrently — slow bots don't block fast ones
+            task = asyncio.create_task(fire_and_log(session, bot, query))
+            pending.add(task)
+            task.add_done_callback(pending.discard)
 
             # Wait before next query
             await asyncio.sleep(interval_seconds)
+
+        # Wait for any in-flight requests to finish
+        if pending:
+            print(f"⏳ Waiting for {len(pending)} in-flight requests...", flush=True)
+            await asyncio.gather(*pending, return_exceptions=True)
 
     # Summary
     print("-" * 60)

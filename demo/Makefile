@@ -69,6 +69,21 @@ load-gen: ## Generate bot traces (33 requests)
 load-gen-tools: ## Generate tool call traces (25 requests)
 	@cd $(DEMO_DIR) && python3 load-gen-openai-tools-TEST.py
 
+.PHONY: traffic
+traffic: ## Generate continuous traffic (default 45 min). Usage: make traffic [DURATION=45]
+	@DURATION=$${DURATION:-45}; \
+	EMAIL=$${OPENWEBUI_EMAIL:-team-se@grafana.com}; \
+	PASSWORD=$${OPENWEBUI_PASSWORD:-open-sesame}; \
+	TOKEN=$$(curl -s -X POST http://localhost:3000/api/v1/auths/signin \
+		-H 'Content-Type: application/json' \
+		-d "{\"email\":\"$$EMAIL\",\"password\":\"$$PASSWORD\"}" \
+		| python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))"); \
+	if [ -z "$$TOKEN" ] || [ "$$TOKEN" = "None" ]; then \
+		echo "❌ Failed to get API token. Is OpenWebUI running? Try: make start"; \
+		exit 1; \
+	fi; \
+	cd $(DEMO_DIR) && python3 continuous-traffic.py --api-key "$$TOKEN" --duration "$$DURATION"
+
 .PHONY: load-test
 load-test: ## Run k6 load test
 	@k6 run $(DEMO_DIR)k6/load-test.js
